@@ -1,0 +1,16 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /gov/
+
+    # Bỏ qua định tuyến cho API backend và uploads
+    RewriteRule ^api/ - [L]
+    RewriteRule ^uploads/ - [L]
+
+    # Nếu tệp hoặc thư mục tồn tại thực tế, tải trực tiếp
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Các route giao diện React SPA chuyển hướng về index.html
+    RewriteRule ^ index.html [L]
+</IfModule>
