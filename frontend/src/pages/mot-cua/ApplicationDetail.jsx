@@ -41,9 +41,10 @@ import {
   ClockCircleOutlined,
   CheckCircleOutlined,
   BankOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
-import { applicationsApi, usersApi } from '../../api/client';
+import { applicationsApi, usersApi, resolveFileUrl } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import dayjs from 'dayjs';
 
@@ -142,13 +143,39 @@ export default function ApplicationDetail() {
   const handleConfirmPayment = async () => {
     setPaymentSubmitting(true);
     try {
-      await applicationsApi.confirmPayment(id, {
+      const receiptNo = `BL-YB-${dayjs().format('YYMMDD')}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const res = await applicationsApi.confirmPayment(id, {
         payment_method: paymentMethod,
-        receipt_number: `BL-YB-${dayjs().format('YYMMDD')}-${Math.floor(1000 + Math.random() * 9000)}`,
+        receipt_number: receiptNo,
       });
       message.success('Xác nhận thu lệ phí thành công! Đã cấp số biên lai điện tử');
       setIsPaymentModalOpen(false);
       fetchDetail();
+      if (res?.data?.receipt_url) {
+        window.open(resolveFileUrl(res.data.receipt_url), '_blank');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
+  // Mô phỏng khách chuyển khoản VietQR MB Bank tức thì
+  const handleSimulateVietQR = async () => {
+    setPaymentSubmitting(true);
+    try {
+      const receiptNo = `BL-YB-${dayjs().format('YYMMDD')}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const res = await applicationsApi.confirmPayment(id, {
+        payment_method: 'CHUYEN_KHOAN_QR',
+        receipt_number: receiptNo,
+      });
+      message.success(`⚡ MB Bank báo có: Đã nhận ${Number(app.fee_amount).toLocaleString('vi-VN')} đ (Nội dung: LP ${app.dossier_code})!`);
+      setIsPaymentModalOpen(false);
+      fetchDetail();
+      if (res?.data?.receipt_url) {
+        window.open(resolveFileUrl(res.data.receipt_url), '_blank');
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -258,21 +285,33 @@ export default function ApplicationDetail() {
             In Giấy tiếp nhận & Hẹn trả (TT 01/2018)
           </Button>
 
-          {/* Nút Thu phí / Lệ phí VietQR */}
+          {/* Nút Thu phí / Lệ phí VietQR & Biên lai điện tử */}
           {feeNumber > 0 && (
-            <Button
-              icon={<DollarOutlined />}
-              onClick={() => setIsPaymentModalOpen(true)}
-              type={app.payment_status === 'DA_THANH_TOAN' ? 'default' : 'primary'}
-              style={{
-                background: app.payment_status === 'DA_THANH_TOAN' ? '#f0fdf4' : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                borderColor: app.payment_status === 'DA_THANH_TOAN' ? '#86efac' : '#d97706',
-                color: app.payment_status === 'DA_THANH_TOAN' ? '#166534' : '#ffffff',
-                fontWeight: 600,
-              }}
-            >
-              {app.payment_status === 'DA_THANH_TOAN' ? 'Đã thu phí (Xem biên lai)' : 'Thu lệ phí / Quét VietQR'}
-            </Button>
+            <Space>
+              <Button
+                icon={<DollarOutlined />}
+                onClick={() => setIsPaymentModalOpen(true)}
+                type={app.payment_status === 'DA_THANH_TOAN' ? 'default' : 'primary'}
+                style={{
+                  background: app.payment_status === 'DA_THANH_TOAN' ? '#f0fdf4' : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                  borderColor: app.payment_status === 'DA_THANH_TOAN' ? '#86efac' : '#d97706',
+                  color: app.payment_status === 'DA_THANH_TOAN' ? '#166534' : '#ffffff',
+                  fontWeight: 600,
+                }}
+              >
+                {app.payment_status === 'DA_THANH_TOAN' ? 'Đã thu phí' : 'Thu lệ phí / Quét VietQR'}
+              </Button>
+
+              {app.payment_status === 'DA_THANH_TOAN' && app.receipt_url && (
+                <Button
+                  icon={<PrinterOutlined />}
+                  onClick={() => window.open(resolveFileUrl(app.receipt_url), '_blank')}
+                  style={{ borderColor: '#b91c1c', color: '#b91c1c', fontWeight: 600 }}
+                >
+                  Xem & In Biên lai điện tử
+                </Button>
+              )}
+            </Space>
           )}
 
           {/* Phân công chuyên viên */}
@@ -524,7 +563,7 @@ export default function ApplicationDetail() {
                       type="link"
                       size="small"
                       icon={<DownloadOutlined />}
-                      onClick={() => window.open(record.file_path, '_blank')}
+                      onClick={() => window.open(resolveFileUrl(record.file_path), '_blank')}
                     >
                       Tải về
                     </Button>
@@ -658,6 +697,25 @@ export default function ApplicationDetail() {
                 <div>Số tiền: <strong style={{ color: '#15803d' }}>{feeNumber.toLocaleString('vi-VN')} VNĐ</strong></div>
                 <div>Nội dung CK: <strong style={{ color: '#b45309' }}>LP {app.dossier_code}</strong></div>
               </div>
+
+              {/* Nút mô phỏng khách đã chuyển khoản 1 chạm */}
+              <Button
+                type="dashed"
+                icon={<ThunderboltOutlined />}
+                onClick={handleSimulateVietQR}
+                loading={paymentSubmitting}
+                style={{
+                  borderColor: '#16a34a',
+                  color: '#16a34a',
+                  fontWeight: 700,
+                  width: '100%',
+                  marginTop: 12,
+                  height: 40,
+                  background: '#f0fdf4',
+                }}
+              >
+                ⚡ Khách đã chuyển khoản VietQR (Mô phỏng 1 chạm)
+              </Button>
             </div>
           )}
 

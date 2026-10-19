@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Button, Avatar, Dropdown, Space, Tag, Modal, Form, Input, message } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Layout, Menu, Button, Avatar, Dropdown, Space, Tag, Modal, Form, Input, Badge, Popover, List, message } from 'antd';
 import {
   DashboardOutlined,
   FileTextOutlined,
@@ -17,10 +17,13 @@ import {
   BankOutlined,
   MenuUnfoldOutlined,
   MenuFoldOutlined,
+  BellOutlined,
+  MessageOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { authApi } from '../api/client';
+import { authApi, dashboardApi } from '../api/client';
 import dayjs from 'dayjs';
 
 const { Header, Sider, Content } = Layout;
@@ -30,6 +33,28 @@ export default function MainLayout() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordForm] = Form.useForm();
   const [submittingPassword, setSubmittingPassword] = useState(false);
+  const [slaAlerts, setSlaAlerts] = useState({
+    warning_count: 0,
+    overdue_count: 0,
+    items: [],
+  });
+
+  useEffect(() => {
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchAlerts = async () => {
+    try {
+      const res = await dashboardApi.getStats();
+      if (res?.data?.sla_alerts) {
+        setSlaAlerts(res.data.sla_alerts);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const { user, logout, hasRole } = useAuth();
   const navigate = useNavigate();
@@ -92,6 +117,7 @@ export default function MainLayout() {
       children: [
         { key: '/reports/performance', label: 'Chỉ số hiệu suất (KPI)' },
         { key: '/reports/procedures', label: 'Thống kê theo thủ tục' },
+        { key: '/notifications', label: 'Nhật ký SMS & Zalo OA' },
       ],
     },
     {
@@ -285,6 +311,89 @@ export default function MainLayout() {
                   Cấp độ 2 • An toàn thông tin
                 </Tag>
               </div>
+
+              {/* CHUÔNG CẢNH BÁO TIẾN ĐỘ SLA */}
+              <Popover
+                placement="bottomRight"
+                trigger="click"
+                title={
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                    <strong style={{ color: '#7f1d1d' }}>CẢNH BÁO TIẾN ĐỘ HỒ SƠ (SLA)</strong>
+                    <Tag color="volcano" style={{ margin: 0 }}>
+                      {slaAlerts.overdue_count + slaAlerts.warning_count} việc gấp
+                    </Tag>
+                  </div>
+                }
+                content={
+                  <div style={{ width: 340, maxHeight: 380, overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                      <Tag color="error" style={{ flex: 1, textAlign: 'center', padding: '4px 0', margin: 0, fontWeight: 700 }}>
+                        🔴 {slaAlerts.overdue_count} Quá hạn
+                      </Tag>
+                      <Tag color="warning" style={{ flex: 1, textAlign: 'center', padding: '4px 0', margin: 0, fontWeight: 700 }}>
+                        🟡 {slaAlerts.warning_count} Sắp quá hạn (&lt;24h)
+                      </Tag>
+                    </div>
+
+                    <List
+                      size="small"
+                      dataSource={slaAlerts.items || []}
+                      renderItem={(item) => (
+                        <List.Item
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: 6,
+                            marginBottom: 6,
+                            background: item.remaining_hours < 0 ? '#fef2f2' : '#fffbeb',
+                            border: item.remaining_hours < 0 ? '1px solid #fecaca' : '1px solid #fef08a',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => navigate(`/applications/${item.id}`)}
+                        >
+                          <div style={{ width: '100%' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <strong style={{ color: '#b91c1c', fontSize: 13 }}>{item.dossier_code}</strong>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: item.remaining_hours < 0 ? '#dc2626' : '#d97706' }}>
+                                {item.remaining_hours < 0 ? `Quá ${Math.abs(item.remaining_hours)}h` : `Còn ${item.remaining_hours}h`}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#1e293b', fontWeight: 600 }}>{item.citizen_name}</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>{item.proc_name}</div>
+                          </div>
+                        </List.Item>
+                      )}
+                    />
+
+                    <Button
+                      type="link"
+                      block
+                      size="small"
+                      onClick={() => navigate('/applications')}
+                      style={{ marginTop: 8, color: '#b91c1c', fontWeight: 600 }}
+                    >
+                      Xem toàn bộ danh sách hồ sơ →
+                    </Button>
+                  </div>
+                }
+              >
+                <Badge count={slaAlerts.overdue_count + slaAlerts.warning_count} offset={[-2, 6]}>
+                  <Button
+                    type="text"
+                    shape="circle"
+                    icon={<BellOutlined style={{ fontSize: 20, color: (slaAlerts.overdue_count + slaAlerts.warning_count > 0) ? '#dc2626' : '#64748b' }} />}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: (slaAlerts.overdue_count + slaAlerts.warning_count > 0) ? '#fef2f2' : '#f8fafc',
+                      border: (slaAlerts.overdue_count + slaAlerts.warning_count > 0) ? '1px solid #fecaca' : '1px solid #e2e8f0',
+                      cursor: 'pointer',
+                    }}
+                  />
+                </Badge>
+              </Popover>
 
               <Dropdown menu={userMenu} placement="bottomRight" arrow>
                 <div

@@ -47,6 +47,7 @@ try {
     // 3. Phân hệ Một cửa & Xử lý hồ sơ (Applications)
     $router->get('/api/v1/applications', [ApplicationController::class, 'index']);
     $router->post('/api/v1/applications', [ApplicationController::class, 'create']);
+    $router->post('/api/v1/public/applications', [ApplicationController::class, 'createPublic']);
     $router->get('/api/v1/applications/track', [ApplicationController::class, 'track']);
     $router->get('/api/v1/applications/{id}', [ApplicationController::class, 'show']);
     $router->put('/api/v1/applications/{id}/assign', [ApplicationController::class, 'assign']);
@@ -58,6 +59,7 @@ try {
     $router->put('/api/v1/applications/{id}/payment', [ApplicationController::class, 'confirmPayment']);
     $router->post('/api/v1/applications/{id}/feedback', [ApplicationController::class, 'submitFeedback']);
     $router->post('/api/v1/applications/{id}/documents', [DocumentController::class, 'upload']);
+    $router->post('/api/v1/public/upload', [DocumentController::class, 'uploadPublic']);
 
     // 4. Danh mục Thủ tục hành chính (Procedures)
     $router->get('/api/v1/procedures', [ProcedureController::class, 'index']);
@@ -81,6 +83,9 @@ try {
     // 7. Phân hệ Phản ánh - Kiến nghị (Complaints)
     $router->get('/api/v1/complaints', [ComplaintController::class, 'index']);
     $router->post('/api/v1/complaints', [ComplaintController::class, 'create']);
+    $router->post('/api/v1/public/complaints', [ComplaintController::class, 'create']);
+    $router->get('/api/v1/complaints/track', [ComplaintController::class, 'track']);
+    $router->get('/api/v1/public/complaints/track', [ComplaintController::class, 'track']);
     $router->get('/api/v1/complaints/{id}', [ComplaintController::class, 'show']);
     $router->put('/api/v1/complaints/{id}/assign', [ComplaintController::class, 'assign']);
     $router->put('/api/v1/complaints/{id}/respond', [ComplaintController::class, 'respond']);
@@ -101,6 +106,10 @@ try {
 
     // 10. Nhật ký kiểm toán (Audit Trail)
     $router->get('/api/v1/audit-logs', [AuditController::class, 'index']);
+
+    // 11. Nhật ký Thông báo SMS / Zalo OA
+    $router->get('/api/v1/notifications', [NotificationController::class, 'index']);
+    $router->get('/api/v1/notifications/stats', [NotificationController::class, 'stats']);
 
     $router->dispatch($request);
 } catch (Throwable $e) {

@@ -2,7 +2,14 @@ import axios from 'axios';
 import { message } from 'antd';
 
 const isGovSubfolder = typeof window !== 'undefined' && window.location.pathname.startsWith('/gov');
-const API_BASE_URL = isGovSubfolder ? '/gov/api/v1' : '/api/v1';
+export const APP_BASE = isGovSubfolder ? '/gov' : '';
+const API_BASE_URL = `${APP_BASE}/api/v1`;
+
+export const resolveFileUrl = (url) => {
+  if (!url) return '#';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${APP_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -34,9 +41,11 @@ client.interceptors.response.use(
     if (status === 401) {
       localStorage.removeItem('gov_token');
       localStorage.removeItem('gov_user');
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/tra-cuu') {
+      const currentPath = window.location.pathname;
+      const isPublicPath = currentPath.endsWith('/login') || currentPath.endsWith('/tra-cuu');
+      if (!isPublicPath) {
         message.warning('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại');
-        window.location.href = '/login';
+        window.location.href = `${APP_BASE}/login`;
       }
     } else if (status === 403) {
       message.error(msg || 'Bạn không có quyền thực hiện thao tác này');
@@ -66,6 +75,7 @@ export const applicationsApi = {
   list: (params) => client.get('/applications', { params }),
   get: (id, params) => client.get(`/applications/${id}`, { params }),
   create: (data) => client.post('/applications', data),
+  createPublic: (data) => client.post('/public/applications', data),
   assign: (id, data) => client.put(`/applications/${id}/assign`, data),
   process: (id, data) => client.put(`/applications/${id}/process`, data),
   submitApproval: (id, data) => client.put(`/applications/${id}/submit-approval`, data),
@@ -107,8 +117,22 @@ export const complaintsApi = {
   list: (params) => client.get('/complaints', { params }),
   get: (id) => client.get(`/complaints/${id}`),
   create: (data) => client.post('/complaints', data),
+  createPublic: (data) => client.post('/public/complaints', data),
+  track: (query) => client.get('/public/complaints/track', { params: { query } }),
   assign: (id, data) => client.put(`/complaints/${id}/assign`, data),
   respond: (id, data) => client.put(`/complaints/${id}/respond`, data),
+};
+
+export const publicUploadApi = {
+  upload: (formData) =>
+    client.post('/public/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+};
+
+export const notificationsApi = {
+  list: (params) => client.get('/notifications', { params }),
+  stats: () => client.get('/notifications/stats'),
 };
 
 export const usersApi = {
@@ -127,7 +151,10 @@ export const departmentsApi = {
 export const reportsApi = {
   performance: () => client.get('/reports/performance'),
   procedures: () => client.get('/reports/procedures'),
-  getExportUrl: () => '/api/v1/reports/export',
+  getExportUrl: () => {
+    const token = localStorage.getItem('gov_token') || '';
+    return `${APP_BASE}/api/v1/reports/export?token=${encodeURIComponent(token)}`;
+  },
 };
 
 export const auditApi = {

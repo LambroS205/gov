@@ -61,6 +61,9 @@ class Request {
         if ($auth && preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
             return trim($matches[1]);
         }
+        if (!empty($this->query['token'])) {
+            return trim($this->query['token']);
+        }
         return null;
     }
 

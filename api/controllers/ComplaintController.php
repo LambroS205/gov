@@ -166,4 +166,41 @@ class ComplaintController {
 
         Response::json(null, 200, 'Phản hồi kết quả xử lý phản ánh thành công');
     }
+
+    /**
+     * Tra cứu phản ánh - kiến nghị công khai (dành cho công dân)
+     */
+    public function track(Request $request): void {
+        $query = trim($request->getQuery('query', ''));
+        if (empty($query)) {
+            Response::error('Vui lòng nhập Mã phản ánh (PAKN-...) hoặc Số điện thoại người gửi', 400);
+        }
+
+        $db = Database::getConnection();
+        $stmt = $db->prepare('
+            SELECT c.*, u.full_name as assigned_name, u.phone_number as assigned_phone
+            FROM complaints c
+            LEFT JOIN users u ON c.assigned_to = u.id
+            WHERE c.complaint_code = ? OR c.citizen_phone = ?
+            ORDER BY c.created_at DESC
+            LIMIT 10
+        ');
+        $stmt->execute([$query, $query]);
+        $items = $stmt->fetchAll();
+
+        if (empty($items)) {
+            Response::error('Không tìm thấy phản ánh - kiến nghị phù hợp với thông tin đã nhập', 404);
+        }
+
+        foreach ($items as &$item) {
+            $item['photo_paths'] = json_decode($item['photo_paths'] ?? '[]', true) ?: [];
+            $item['resolved_photo_paths'] = json_decode($item['resolved_photo_paths'] ?? '[]', true) ?: [];
+            // Che bớt số CCCD để bảo vệ riêng tư công dân
+            if (!empty($item['citizen_cccd'])) {
+                $item['citizen_cccd'] = substr($item['citizen_cccd'], 0, 4) . '****' . substr($item['citizen_cccd'], -4);
+            }
+        }
+
+        Response::json($items, 200, 'Tra cứu phản ánh thành công');
+    }
 }

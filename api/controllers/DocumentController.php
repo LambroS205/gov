@@ -69,4 +69,56 @@ class DocumentController {
             'file_path' => $relativeUrl
         ], 201, 'Tải tài liệu đính kèm lên thành công');
     }
+
+    /**
+     * Tải tệp công khai (Công dân nộp hồ sơ trực tuyến hoặc đính kèm ảnh phản ánh)
+     */
+    public function uploadPublic(Request $request): void {
+        if (empty($_FILES['file'])) {
+            Response::error('Không tìm thấy tệp để tải lên', 400);
+        }
+
+        $file = $_FILES['file'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            Response::error('Lỗi khi tải tệp lên hệ thống: ' . $file['error'], 400);
+        }
+
+        $config = require dirname(__DIR__) . '/config/app.php';
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+        if (!in_array($ext, $config['allowed_extensions'], true)) {
+            Response::error('Định dạng tệp không được phép. Cho phép: ' . implode(', ', $config['allowed_extensions']), 400);
+        }
+
+        if ($file['size'] > $config['max_file_size']) {
+            Response::error('Dung lượng tệp vượt quá giới hạn (Tối đa 10MB)', 400);
+        }
+
+        $targetFolder = $request->get('folder', 'documents');
+        if (!in_array($targetFolder, ['documents', 'complaints'])) {
+            $targetFolder = 'documents';
+        }
+
+        $uploadDir = $config['upload_dir'] . DIRECTORY_SEPARATOR . $targetFolder;
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+
+        $safeFileName = sprintf('public_%s_%s.%s', date('Ymd_His'), bin2hex(random_bytes(6)), $ext);
+        $destPath = $uploadDir . DIRECTORY_SEPARATOR . $safeFileName;
+
+        if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+            Response::error('Không thể lưu tệp vào hệ thống', 500);
+        }
+
+        $relativeUrl = '/uploads/' . $targetFolder . '/' . $safeFileName;
+
+        Response::json([
+            'document_name' => $file['name'],
+            'file_name' => $safeFileName,
+            'file_path' => $relativeUrl,
+            'file_size' => $file['size'],
+            'mime_type' => $file['type'] ?: 'application/octet-stream'
+        ], 201, 'Tải tệp thành công');
+    }
 }

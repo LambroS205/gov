@@ -2,6 +2,10 @@
     RewriteEngine On
     RewriteBase /gov/
 
+    # Chặn truy cập trực tiếp vào thư mục mã nguồn/tệp SQL nhạy cảm
+    RewriteRule ^\.git(/|$) - [F,L]
+    RewriteRule \.(sql|env|log)$ - [F,L]
+
     # Bỏ qua định tuyến cho API backend và uploads
     RewriteRule ^api/ - [L]
     RewriteRule ^uploads/ - [L]

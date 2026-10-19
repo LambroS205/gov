@@ -1,5 +1,12 @@
 <?php
 // Script nạp dữ liệu mẫu an toàn chuẩn UTF-8 100%
+// Chỉ cho phép chạy từ CLI hoặc web có xác nhận bí mật: ?confirm=reset_demo_data_2026
+if (php_sapi_name() !== 'cli' && ($_GET['confirm'] ?? '') !== 'reset_demo_data_2026') {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    die("Từ chối truy cập: Script nạp lại CSDL chỉ được phép chạy từ dòng lệnh (CLI): php database/import_seed.php hoặc có khóa xác nhận (?confirm=reset_demo_data_2026).\n");
+}
+
 require_once dirname(__DIR__) . '/api/core/Database.php';
 
 try {

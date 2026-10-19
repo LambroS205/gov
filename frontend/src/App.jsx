@@ -18,6 +18,7 @@ import AreaManagement from './pages/citizens/AreaManagement';
 import ComplaintList from './pages/complaints/ComplaintList';
 import PerformanceReport from './pages/reports/PerformanceReport';
 import ProcedureStats from './pages/reports/ProcedureStats';
+import NotificationLog from './pages/notifications/NotificationLog';
 import UserManagement from './pages/admin/UserManagement';
 import ProcedureManagement from './pages/admin/ProcedureManagement';
 import DepartmentManagement from './pages/admin/DepartmentManagement';
@@ -122,6 +123,7 @@ export default function App() {
               {/* Phân hệ Báo cáo Thống kê */}
               <Route path="reports/performance" element={<PerformanceReport />} />
               <Route path="reports/procedures" element={<ProcedureStats />} />
+              <Route path="notifications" element={<NotificationLog />} />
 
               {/* Phân hệ Quản trị hệ thống */}
               <Route
