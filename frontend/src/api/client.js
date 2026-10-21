@@ -42,7 +42,7 @@ client.interceptors.response.use(
       localStorage.removeItem('gov_token');
       localStorage.removeItem('gov_user');
       const currentPath = window.location.pathname;
-      const isPublicPath = currentPath.endsWith('/login') || currentPath.endsWith('/tra-cuu');
+      const isPublicPath = currentPath.endsWith('/login') || currentPath.endsWith('/tra-cuu') || currentPath.includes('/cong-dan');
       if (!isPublicPath) {
         message.warning('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại');
         window.location.href = `${APP_BASE}/login`;
@@ -159,6 +159,12 @@ export const reportsApi = {
 
 export const auditApi = {
   list: (params) => client.get('/audit-logs', { params }),
+};
+
+export const citizenAccountsApi = {
+  list: (params) => client.get('/citizen-accounts', { params }),
+  get: (id) => client.get(`/citizen-accounts/${id}`),
+  updateStatus: (id, data) => client.put(`/citizen-accounts/${id}/status`, data),
 };
 
 export default client;

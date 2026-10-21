@@ -99,6 +99,15 @@ class ComplaintController {
         $location = trim($body['location'] ?? '');
         $phone = trim($body['citizen_phone'] ?? '');
 
+        $citizen = CitizenAuth::optionalCitizen($request);
+        $citizenAccountId = null;
+        if ($citizen) {
+            $citizenAccountId = $citizen['id'];
+            if (empty($citizenName)) $citizenName = $citizen['full_name'];
+            if (empty($phone)) $phone = $citizen['phone_number'];
+            $body['citizen_cccd'] = $citizen['cccd_number'];
+        }
+
         if (empty($citizenName) || empty($title) || empty($description)) {
             Response::error('Họ tên, tiêu đề và nội dung phản ánh không được để trống', 400);
         }
@@ -108,15 +117,15 @@ class ComplaintController {
 
         $stmt = $db->prepare('
             INSERT INTO complaints (
-                complaint_code, citizen_name, citizen_phone, citizen_cccd, category, 
+                complaint_code, citizen_name, citizen_phone, citizen_cccd, citizen_account_id, category, 
                 title, description, location, photo_paths, priority, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $photos = !empty($body['photo_paths']) ? json_encode($body['photo_paths'], JSON_UNESCAPED_UNICODE) : null;
         $priority = $body['priority'] ?? 'TRUNG_BINH';
 
         $stmt->execute([
-            $code, $citizenName, $phone, $body['citizen_cccd'] ?? null,
+            $code, $citizenName, $phone, $body['citizen_cccd'] ?? null, $citizenAccountId,
             $category, $title, $description, $location, $photos, $priority, 'MOI'
         ]);
 
@@ -168,12 +177,17 @@ class ComplaintController {
     }
 
     /**
-     * Tra cứu phản ánh - kiến nghị công khai (dành cho công dân)
+     * Tra cứu phản ánh - kiến nghị công khai (dành cho công dân tra cứu theo Mã phản ánh)
      */
     public function track(Request $request): void {
         $query = trim($request->getQuery('query', ''));
         if (empty($query)) {
-            Response::error('Vui lòng nhập Mã phản ánh (PAKN-...) hoặc Số điện thoại người gửi', 400);
+            Response::error('Vui lòng nhập Mã phản ánh (Ví dụ: PAKN-...) để tra cứu', 400);
+        }
+
+        // Nếu người dùng nhập số điện thoại mà chưa đăng nhập, hướng dẫn đăng nhập bảo mật
+        if (preg_match('/^0\d{9}$/', $query)) {
+            Response::error('Để bảo vệ thông tin cá nhân, việc tra cứu toàn bộ phản ánh theo Số điện thoại yêu cầu Đăng nhập vào Cổng Dịch vụ công. Quý công dân vui lòng Đăng nhập để xem danh sách phản ánh của mình hoặc nhập chính xác Mã phản ánh (PAKN-...).', 403);
         }
 
         $db = Database::getConnection();
@@ -181,15 +195,15 @@ class ComplaintController {
             SELECT c.*, u.full_name as assigned_name, u.phone_number as assigned_phone
             FROM complaints c
             LEFT JOIN users u ON c.assigned_to = u.id
-            WHERE c.complaint_code = ? OR c.citizen_phone = ?
+            WHERE c.complaint_code = ?
             ORDER BY c.created_at DESC
             LIMIT 10
         ');
-        $stmt->execute([$query, $query]);
+        $stmt->execute([$query]);
         $items = $stmt->fetchAll();
 
         if (empty($items)) {
-            Response::error('Không tìm thấy phản ánh - kiến nghị phù hợp với thông tin đã nhập', 404);
+            Response::error('Không tìm thấy phản ánh - kiến nghị phù hợp với mã đã nhập', 404);
         }
 
         foreach ($items as &$item) {

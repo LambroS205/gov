@@ -350,6 +350,16 @@ class ApplicationController {
         $payload = !empty($body['dossier_payload']) ? json_encode($body['dossier_payload'], JSON_UNESCAPED_UNICODE) : null;
         $attachedFiles = $body['documents'] ?? [];
 
+        $citizen = CitizenAuth::optionalCitizen($request);
+        $citizenAccountId = null;
+        if ($citizen) {
+            $citizenAccountId = $citizen['id'];
+            $citizenIdNumber = $citizen['cccd_number']; // Bắt buộc dùng CCCD của tài khoản đã đăng nhập
+            if (empty($citizenName)) $citizenName = $citizen['full_name'];
+            if (empty($citizenPhone)) $citizenPhone = $citizen['phone_number'];
+            if (empty($citizenAddress) && !empty($citizen['address'])) $citizenAddress = $citizen['address'];
+        }
+
         if (empty($procedureId) || empty($citizenName) || empty($citizenIdNumber) || empty($citizenPhone)) {
             Response::error('Vui lòng cung cấp đầy đủ: Thủ tục, Họ và tên, Số CCCD và Số điện thoại', 400);
         }
@@ -374,14 +384,14 @@ class ApplicationController {
             $insert = $db->prepare('
                 INSERT INTO applications (
                     dossier_code, procedure_id, citizen_name, citizen_id_number, 
-                    citizen_phone, citizen_address, status, submit_channel, 
+                    citizen_phone, citizen_address, citizen_account_id, status, submit_channel, 
                     appointment_date, received_by_id, dossier_payload, notes,
                     payment_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
             ');
             $insert->execute([
                 $dossierCode, $procedureId, $citizenName, $citizenIdNumber,
-                $citizenPhone, $citizenAddress, 'CHO_TIEP_NHAN', 'TRUC_TUYEN',
+                $citizenPhone, $citizenAddress, $citizenAccountId, 'CHO_TIEP_NHAN', 'TRUC_TUYEN',
                 $appointmentDate, $payload, $notes, $paymentStatus
             ]);
 
@@ -1110,89 +1120,47 @@ HTML;
     }
 
     /**
-     * Tra cứu tiến độ hồ sơ cho người dân (Public API - Không cần token)
+     * Tra cứu tiến độ hồ sơ cho người dân (Public API - Tra cứu theo Mã hồ sơ)
      */
     public function track(Request $request): void {
         $code = trim($request->getQuery('code', ''));
         if (empty($code)) {
-            Response::error('Vui lòng nhập Mã hồ sơ hoặc Số CCCD để tra cứu', 400);
+            Response::error('Vui lòng nhập Mã hồ sơ để tra cứu (Ví dụ: 000.00.00.H49-...)', 400);
+        }
+
+        // Nếu người dùng nhập dãy số giống CCCD mà chưa đăng nhập, hướng dẫn đăng nhập bảo mật
+        if (preg_match('/^\d{9,12}$/', $code)) {
+            Response::error('Để bảo vệ dữ liệu cá nhân theo Nghị định 13/2023/NĐ-CP, việc tra cứu hồ sơ theo Số CCCD/Định danh yêu cầu Đăng nhập vào Cổng Dịch vụ công. Quý công dân vui lòng Đăng nhập tài khoản để xem toàn bộ hồ sơ của mình.', 403);
         }
 
         $db = Database::getConnection();
         $stmt = $db->prepare('
             SELECT 
-                a.id, a.dossier_code, a.citizen_name, a.status, a.submit_date, 
-                a.appointment_date, a.completed_date, a.rejection_reason,
+                a.id, a.dossier_code, a.citizen_name, a.citizen_id_number, a.citizen_phone,
+                a.status, a.submit_date, a.appointment_date, a.completed_date, a.rejection_reason,
                 a.payment_status, a.payment_method, a.receipt_number, a.paid_at,
                 a.satisfaction_score, a.satisfaction_comment, a.satisfaction_date,
                 p.proc_name, p.field_type, p.fee_amount
             FROM applications a
             JOIN administrative_procedures p ON a.procedure_id = p.id
-            WHERE a.dossier_code = ? OR a.citizen_id_number = ?
+            WHERE a.dossier_code = ?
             ORDER BY a.submit_date DESC
         ');
-        $stmt->execute([$code, $code]);
+        $stmt->execute([$code]);
         $apps = $stmt->fetchAll();
 
         if (empty($apps)) {
-            Response::error('Không tìm thấy thông tin hồ sơ phù hợp trên hệ thống', 404);
+            Response::error('Không tìm thấy thông tin hồ sơ phù hợp với mã đã nhập trên hệ thống', 404);
         }
 
-        $now = time();
-        // Lấy timeline quy trình cho hồ sơ
-        foreach ($apps as &$app) {
-            $appTime = strtotime($app['appointment_date']);
-            if (in_array($app['status'], ['HOAN_THANH', 'TU_CHOI'])) {
-                $app['sla_status'] = 'COMPLETED';
-            } elseif ($now > $appTime) {
-                $app['sla_status'] = 'OVERDUE';
-            } elseif ($appTime - $now <= 86400) {
-                $app['sla_status'] = 'WARNING';
-            } else {
-                $app['sla_status'] = 'NORMAL';
-            }
-
-            $wfStmt = $db->prepare('
-                SELECT action, from_status, to_status, comment, created_at
-                FROM application_workflow
-                WHERE application_id = ?
-                ORDER BY created_at ASC
-            ');
-            $wfStmt->execute([$app['id']]);
-            $app['workflow'] = $wfStmt->fetchAll();
-
-            // Lấy danh sách tài liệu kết quả/đính kèm công khai cho người dân
-            $docStmt = $db->prepare('
-                SELECT id, document_name, file_path, doc_type, is_signed, uploaded_at
-                FROM application_documents
-                WHERE application_id = ?
-                ORDER BY uploaded_at ASC
-            ');
-            $docStmt->execute([$app['id']]);
-            $app['documents'] = $docStmt->fetchAll();
-
-            // Nếu hồ sơ đã thanh toán và có số biên lai, trả về receipt_url
-            if ($app['payment_status'] === 'DA_THANH_TOAN' && !empty($app['receipt_number'])) {
-                $receiptDir = dirname(dirname(__DIR__)) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'receipts';
-                if (!is_dir($receiptDir)) {
-                    mkdir($receiptDir, 0777, true);
-                }
-                $receiptFile = $receiptDir . DIRECTORY_SEPARATOR . $app['receipt_number'] . '.html';
-                if (!file_exists($receiptFile)) {
-                    $rHtml = self::generateReceiptHtml($app, $app['receipt_number'], $app['payment_method'] === 'CHUYEN_KHOAN_QR' ? 'Chuyển khoản VietQR' : 'Tiền mặt', 'Bộ phận Một cửa', $app['paid_at'] ?? date('Y-m-d H:i:s'));
-                    file_put_contents($receiptFile, $rHtml);
-                }
-                $app['receipt_url'] = '/uploads/receipts/' . $app['receipt_number'] . '.html';
-            }
-        }
-
+        $apps = ApplicationPresenter::enrichList($db, $apps);
         Response::json($apps, 200, 'Tra cứu tiến độ hồ sơ thành công');
     }
 
     /**
      * Tạo mẫu Biên lai điện tử HTML chuẩn Bộ Tài chính & UBND Phường Yên Bái
      */
-    private static function generateReceiptHtml(array $app, string $receiptNumber, string $paymentMethod, string $collectorName, string $paidAt): string {
+    public static function generateReceiptHtml(array $app, string $receiptNumber, string $paymentMethod, string $collectorName, string $paidAt): string {
         $citizenName = htmlspecialchars($app['citizen_name'] ?? 'Công dân');
         $citizenId = htmlspecialchars($app['citizen_id_number'] ?? 'Chưa cập nhật');
         $citizenPhone = htmlspecialchars($app['citizen_phone'] ?? 'Chưa cập nhật');

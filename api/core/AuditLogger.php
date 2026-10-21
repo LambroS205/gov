@@ -15,8 +15,11 @@ class AuditLogger {
     ): void {
         try {
             $db = Database::getConnection();
-            $userId = $user['id'] ?? (Auth::user()['id'] ?? null);
-            $userName = $user['full_name'] ?? (Auth::user()['full_name'] ?? 'Khách / Hệ thống');
+            $staffUser = $user ?? Auth::user();
+            $citizenUser = CitizenAuth::user();
+
+            $userId = $staffUser['id'] ?? null;
+            $userName = $staffUser['full_name'] ?? ($citizenUser ? 'Công dân: ' . $citizenUser['full_name'] : 'Khách / Hệ thống');
 
             $ip = $request ? $request->getClientIp() : ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
             $ua = $request ? $request->getUserAgent() : ($_SERVER['HTTP_USER_AGENT'] ?? 'CLI');

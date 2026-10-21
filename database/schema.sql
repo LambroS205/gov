@@ -68,6 +68,7 @@ CREATE TABLE applications (
     citizen_id_number VARCHAR(20) NOT NULL, -- Số CCCD
     citizen_phone VARCHAR(15),
     citizen_address TEXT,
+    citizen_account_id CHAR(36) NULL,
     status ENUM('CHO_TIEP_NHAN', 'DANG_XU_LY', 'CHO_KY_DUYET', 'DA_KY_SO', 'HOAN_THANH', 'TRA_LAI', 'TU_CHOI') NOT NULL DEFAULT 'CHO_TIEP_NHAN',
     submit_channel ENUM('TRUC_TIEP', 'TRUC_TUYEN') DEFAULT 'TRUC_TIEP',
     submit_date DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -93,6 +94,7 @@ CREATE TABLE applications (
     CONSTRAINT fk_app_receiver FOREIGN KEY (received_by_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_status (status),
     INDEX idx_citizen_id (citizen_id_number),
+    INDEX idx_app_cacc (citizen_account_id),
     INDEX idx_submit_date (submit_date),
     INDEX idx_appointment (appointment_date),
     INDEX idx_handler (current_handler_id)
@@ -186,6 +188,7 @@ CREATE TABLE complaints (
     citizen_name VARCHAR(100) NOT NULL,
     citizen_phone VARCHAR(15) NULL,
     citizen_cccd VARCHAR(20) NULL,
+    citizen_account_id CHAR(36) NULL,
     category ENUM('RAC_THAI', 'LAN_CHIEM', 'AN_NINH', 'DIEN_NUOC', 'GIAO_THONG', 'MOI_TRUONG', 'KHAC') NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
@@ -202,6 +205,7 @@ CREATE TABLE complaints (
     CONSTRAINT fk_complaint_assigned FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_complaint_status (status),
     INDEX idx_complaint_category (category),
+    INDEX idx_cpl_cacc (citizen_account_id),
     INDEX idx_complaint_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -256,4 +260,46 @@ CREATE TABLE refresh_tokens (
     INDEX idx_token_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 13. Bảng Tài khoản Công dân
+DROP TABLE IF EXISTS citizen_accounts;
+CREATE TABLE citizen_accounts (
+    id CHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+    cccd_number VARCHAR(12) NOT NULL UNIQUE,
+    phone_number VARCHAR(15) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NULL,
+    date_of_birth DATE NULL,
+    gender ENUM('NAM', 'NU', 'KHAC') DEFAULT 'NAM',
+    address TEXT NULL,
+    citizen_id CHAR(36) NULL,
+    phone_verified_at TIMESTAMP NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    failed_login_count TINYINT DEFAULT 0,
+    locked_until TIMESTAMP NULL,
+    last_login_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_cacc_citizen FOREIGN KEY (citizen_id) REFERENCES citizens(id) ON DELETE SET NULL,
+    INDEX idx_cacc_cccd (cccd_number),
+    INDEX idx_cacc_phone (phone_number),
+    INDEX idx_cacc_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 14. Bảng Mã xác thực OTP Công dân
+DROP TABLE IF EXISTS citizen_otps;
+CREATE TABLE citizen_otps (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    phone_number VARCHAR(15) NOT NULL,
+    purpose ENUM('RESET_PASSWORD', 'VERIFY_PHONE') NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    attempts TINYINT DEFAULT 0,
+    expires_at DATETIME NOT NULL,
+    consumed_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_otp_phone (phone_number, purpose),
+    INDEX idx_otp_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
+

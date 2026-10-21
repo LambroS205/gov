@@ -6,6 +6,8 @@ return [
     'version' => '1.0.0',
     'jwt_secret' => 'YenBai-eGov-Secret-Key-2026-SuperSecure-Salt-998877',
     'jwt_expiry' => 86400, // 24 giờ
+    'citizen_jwt_ttl' => 86400 * 7, // 7 ngày cho phiên công dân
+    'demo_mode' => true, // Bật chế độ demo (trả kèm mã OTP trong phản hồi thử nghiệm)
     'upload_dir' => dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'uploads',
     'max_file_size' => 10 * 1024 * 1024, // 10MB
     'allowed_extensions' => ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'zip']

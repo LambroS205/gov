@@ -52,6 +52,8 @@ import {
   resolveFileUrl,
 } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCitizenAuth } from '../../contexts/CitizenAuthContext';
+import { portalPublicApi } from '../../api/portalClient';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
@@ -62,12 +64,15 @@ export default function TrackingSearch() {
   const [activeTab, setActiveTab] = useState('track');
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { citizen } = useCitizenAuth();
 
   const handleBack = () => {
     if (window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else if (user) {
       navigate('/dashboard');
+    } else if (citizen) {
+      navigate('/cong-dan');
     } else {
       navigate('/login');
     }
@@ -85,7 +90,7 @@ export default function TrackingSearch() {
 
   const handleSearch = async () => {
     if (!code.trim()) {
-      setErrorMsg('Vui lòng nhập Mã hồ sơ hoặc Số CCCD để tra cứu');
+      setErrorMsg('Vui lòng nhập Mã hồ sơ để tra cứu (Ví dụ: 000.00.00.H49-...)');
       return;
     }
 
@@ -93,14 +98,14 @@ export default function TrackingSearch() {
     setErrorMsg('');
     setResults(null);
     try {
-      const res = await applicationsApi.track(code.trim());
+      const res = await portalPublicApi.track(code.trim());
       if (res?.data && res.data.length > 0) {
         setResults(res.data);
       } else {
         setErrorMsg('Không tìm thấy thông tin hồ sơ phù hợp trên hệ thống');
       }
     } catch (err) {
-      setErrorMsg(err?.message || 'Không tìm thấy hồ sơ với mã hoặc số CCCD đã nhập');
+      setErrorMsg(err?.message || 'Không tìm thấy hồ sơ với mã đã nhập');
     } finally {
       setLoading(false);
     }
@@ -166,6 +171,23 @@ export default function TrackingSearch() {
       .catch((err) => console.error(err));
   }, []);
 
+  // Tự động điền thông tin công dân nếu đã đăng nhập
+  useEffect(() => {
+    if (citizen) {
+      onlineForm.setFieldsValue({
+        citizen_name: citizen.full_name,
+        citizen_id_number: citizen.cccd_number,
+        citizen_phone: citizen.phone_number,
+        citizen_address: citizen.address || '',
+      });
+      complaintForm.setFieldsValue({
+        citizen_name: citizen.full_name,
+        citizen_phone: citizen.phone_number,
+        citizen_cccd: citizen.cccd_number,
+      });
+    }
+  }, [citizen]);
+
   const handleProcChange = (procId) => {
     const found = procedures.find((p) => p.id === procId);
     setSelectedProc(found || null);
@@ -206,17 +228,25 @@ export default function TrackingSearch() {
       const payload = {
         procedure_id: values.procedure_id,
         citizen_name: values.citizen_name,
-        citizen_id_number: values.citizen_id_number,
+        citizen_id_number: citizen ? citizen.cccd_number : values.citizen_id_number,
         citizen_phone: values.citizen_phone,
         citizen_address: values.citizen_address,
         notes: values.notes || '',
         documents: onlineDocuments,
       };
 
-      const res = await applicationsApi.createPublic(payload);
+      const res = await portalPublicApi.createApplication(payload);
       if (res?.data) {
         setOnlineSuccessData(res.data);
         onlineForm.resetFields();
+        if (citizen) {
+          onlineForm.setFieldsValue({
+            citizen_name: citizen.full_name,
+            citizen_id_number: citizen.cccd_number,
+            citizen_phone: citizen.phone_number,
+            citizen_address: citizen.address || '',
+          });
+        }
         setOnlineDocuments([]);
         setSelectedProc(null);
         message.success('Nộp hồ sơ trực tuyến thành công!');
@@ -262,7 +292,7 @@ export default function TrackingSearch() {
       const payload = {
         citizen_name: values.citizen_name,
         citizen_phone: values.citizen_phone,
-        citizen_cccd: values.citizen_cccd || '',
+        citizen_cccd: citizen ? citizen.cccd_number : (values.citizen_cccd || ''),
         category: values.category,
         location: values.location,
         title: values.title,
@@ -270,10 +300,17 @@ export default function TrackingSearch() {
         photo_paths: complaintPhotos,
       };
 
-      const res = await complaintsApi.createPublic(payload);
+      const res = await portalPublicApi.createComplaint(payload);
       if (res?.data) {
         setComplaintSuccessCode(res.data.complaint_code);
         complaintForm.resetFields();
+        if (citizen) {
+          complaintForm.setFieldsValue({
+            citizen_name: citizen.full_name,
+            citizen_phone: citizen.phone_number,
+            citizen_cccd: citizen.cccd_number,
+          });
+        }
         setComplaintPhotos([]);
         message.success('Đã gửi phản ánh hiện trường tới UBND Phường thành công!');
       }
@@ -292,7 +329,7 @@ export default function TrackingSearch() {
 
   const handleSearchComplaint = async () => {
     if (!complaintSearchQuery.trim()) {
-      setComplaintError('Vui lòng nhập Mã phản ánh (PAKN-...) hoặc Số điện thoại người gửi');
+      setComplaintError('Vui lòng nhập Mã phản ánh (Ví dụ: PAKN-...) để tra cứu');
       return;
     }
 
@@ -300,7 +337,7 @@ export default function TrackingSearch() {
     setComplaintError('');
     setComplaintResults(null);
     try {
-      const res = await complaintsApi.track(complaintSearchQuery.trim());
+      const res = await portalPublicApi.trackComplaint(complaintSearchQuery.trim());
       if (res?.data && res.data.length > 0) {
         setComplaintResults(res.data);
       } else {
@@ -351,20 +388,44 @@ export default function TrackingSearch() {
             {user ? 'Quay lại hệ thống quản trị' : 'Quay lại trang chủ'}
           </Button>
 
-          <Space size="middle">
-            {user ? (
+          <Space size="middle" wrap>
+            {citizen ? (
+              <Space>
+                <Tag color="gold" style={{ margin: 0, padding: '4px 10px', fontSize: 13, fontWeight: 700, borderRadius: 6 }}>
+                  👤 {citizen.full_name} ({citizen.phone_number})
+                </Tag>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => navigate('/cong-dan')}
+                  style={{ background: '#b91c1c', borderColor: '#7f1d1d', fontWeight: 600 }}
+                >
+                  Cổng cá nhân của tôi
+                </Button>
+              </Space>
+            ) : user ? (
               <Tag color="volcano" style={{ margin: 0, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
                 👤 {user.full_name} ({user.role})
               </Tag>
             ) : (
-              <Button
-                type="text"
-                size="small"
-                onClick={() => navigate('/login')}
-                style={{ color: '#64748b', fontSize: 13 }}
-              >
-                Đăng nhập cán bộ
-              </Button>
+              <Space>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => navigate('/cong-dan/dang-nhap')}
+                  style={{ background: '#b91c1c', borderColor: '#7f1d1d', fontWeight: 600 }}
+                >
+                  Đăng nhập Công dân
+                </Button>
+                <Button
+                  type="text"
+                  size="small"
+                  onClick={() => navigate('/login')}
+                  style={{ color: '#64748b', fontSize: 13 }}
+                >
+                  Đăng nhập cán bộ
+                </Button>
+              </Space>
             )}
             <div style={{ fontSize: 12, color: '#94a3b8' }}>
               Cổng Dịch vụ công & Phản ánh Hiện trường Phường Yên Bái
@@ -875,6 +936,17 @@ export default function TrackingSearch() {
                   >
                     Xem tiến độ hồ sơ ngay
                   </Button>,
+                  ...(citizen
+                    ? [
+                        <Button
+                          key="viewMyApps"
+                          onClick={() => navigate('/cong-dan/ho-so')}
+                          style={{ borderColor: '#b91c1c', color: '#b91c1c', fontWeight: 700 }}
+                        >
+                          Xem trong Hồ sơ của tôi
+                        </Button>,
+                      ]
+                    : []),
                   <Button
                     key="submitAnother"
                     onClick={() => setOnlineSuccessData(null)}
@@ -954,7 +1026,12 @@ export default function TrackingSearch() {
                           { pattern: /^[0-9]{12}$/, message: 'Số CCCD phải gồm đúng 12 chữ số' },
                         ]}
                       >
-                        <Input placeholder="Ví dụ: 015094001234" maxLength={12} size="large" />
+                        <Input
+                          placeholder="Ví dụ: 015094001234"
+                          maxLength={12}
+                          size="large"
+                          disabled={Boolean(citizen)}
+                        />
                       </Form.Item>
                     </Col>
                   </Row>
@@ -1082,6 +1159,17 @@ export default function TrackingSearch() {
                   >
                     Tra cứu tiến độ phản ánh này
                   </Button>,
+                  ...(citizen
+                    ? [
+                        <Button
+                          key="viewMyComplaints"
+                          onClick={() => navigate('/cong-dan/phan-anh')}
+                          style={{ borderColor: '#b91c1c', color: '#b91c1c', fontWeight: 700 }}
+                        >
+                          Xem trong Phản ánh của tôi
+                        </Button>,
+                      ]
+                    : []),
                   <Button key="sendAnother" onClick={() => setComplaintSuccessCode('')}>
                     Gửi phản ánh khác
                   </Button>,

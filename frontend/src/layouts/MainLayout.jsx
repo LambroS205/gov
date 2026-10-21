@@ -102,8 +102,9 @@ export default function MainLayout() {
       label: 'Quản lý Dân cư',
       children: [
         { key: '/citizens', label: 'Danh bạ nhân khẩu' },
+        { key: '/admin/citizen-accounts', label: 'Tài khoản công dân', hidden: !hasRole(['ADMIN', 'MOT_CUA']) },
         { key: '/areas', label: 'Tổ dân phố & Địa bàn' },
-      ],
+      ].filter((i) => !i.hidden),
     },
     {
       key: '/complaints',

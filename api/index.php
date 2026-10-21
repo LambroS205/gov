@@ -111,6 +111,31 @@ try {
     $router->get('/api/v1/notifications', [NotificationController::class, 'index']);
     $router->get('/api/v1/notifications/stats', [NotificationController::class, 'stats']);
 
+    // 12. Phân hệ Tài khoản Công dân (Citizen Authentication)
+    $router->post('/api/v1/citizen/auth/register', [CitizenAuthController::class, 'register']);
+    $router->post('/api/v1/citizen/auth/login', [CitizenAuthController::class, 'login']);
+    $router->get('/api/v1/citizen/auth/me', [CitizenAuthController::class, 'me']);
+    $router->post('/api/v1/citizen/auth/logout', [CitizenAuthController::class, 'logout']);
+    $router->post('/api/v1/citizen/auth/forgot-password', [CitizenAuthController::class, 'forgotPassword']);
+    $router->post('/api/v1/citizen/auth/reset-password', [CitizenAuthController::class, 'resetPassword']);
+
+    // 13. Cổng Dịch vụ công Công dân (Citizen Portal Dashboard & Features)
+    $router->get('/api/v1/citizen/summary', [CitizenPortalController::class, 'summary']);
+    $router->get('/api/v1/citizen/applications', [CitizenPortalController::class, 'applications']);
+    $router->get('/api/v1/citizen/applications/{id}', [CitizenPortalController::class, 'applicationDetail']);
+    $router->get('/api/v1/citizen/complaints', [CitizenPortalController::class, 'complaints']);
+    $router->get('/api/v1/citizen/complaints/{id}', [CitizenPortalController::class, 'complaintDetail']);
+    $router->get('/api/v1/citizen/notifications', [CitizenPortalController::class, 'notifications']);
+    $router->put('/api/v1/citizen/profile', [CitizenPortalController::class, 'updateProfile']);
+    $router->post('/api/v1/citizen/change-password', [CitizenPortalController::class, 'changePassword']);
+    $router->post('/api/v1/citizen/phone/send-otp', [CitizenPortalController::class, 'sendPhoneOtp']);
+    $router->post('/api/v1/citizen/phone/verify', [CitizenPortalController::class, 'verifyPhone']);
+
+    // 14. Quản lý Tài khoản Công dân (dành cho Cán bộ Quản trị & Một cửa)
+    $router->get('/api/v1/citizen-accounts', [CitizenAccountController::class, 'index']);
+    $router->get('/api/v1/citizen-accounts/{id}', [CitizenAccountController::class, 'show']);
+    $router->put('/api/v1/citizen-accounts/{id}/status', [CitizenAccountController::class, 'updateStatus']);
+
     $router->dispatch($request);
 } catch (Throwable $e) {
     Response::error('Lỗi máy chủ nội bộ: ' . $e->getMessage(), 500, [

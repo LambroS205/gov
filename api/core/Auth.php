@@ -63,7 +63,7 @@ class Auth {
         }
 
         $payload = self::verifyToken($token);
-        if (!$payload || !isset($payload['user_id'])) {
+        if (!$payload || !isset($payload['user_id']) || ($payload['typ'] ?? null) === 'citizen') {
             Response::error('Phiên làm việc không hợp lệ hoặc đã hết hạn, vui lòng đăng nhập lại', 401);
         }
 

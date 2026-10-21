@@ -220,7 +220,21 @@ export default function Login() {
         <Divider style={{ margin: '18px 0 14px 0' }} />
 
         {/* Nút dành cho công dân */}
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Button
+            type="primary"
+            icon={<UserOutlined />}
+            onClick={() => navigate('/cong-dan/dang-nhap')}
+            style={{
+              borderRadius: 8,
+              fontWeight: 700,
+              background: '#b91c1c',
+              borderColor: '#7f1d1d',
+              height: 40,
+            }}
+          >
+            Đăng nhập Tài khoản Công dân
+          </Button>
           <Button
             type="default"
             icon={<SearchOutlined style={{ color: '#b91c1c' }} />}
