@@ -1,15 +1,9 @@
 import axios from 'axios';
 import { message } from 'antd';
+import { APP_BASE, resolveFileUrl, parsePhotos } from './client';
 
-const isGovSubfolder = typeof window !== 'undefined' && window.location.pathname.startsWith('/gov');
-export const APP_BASE = isGovSubfolder ? '/gov' : '';
+export { APP_BASE, resolveFileUrl, parsePhotos };
 const API_BASE_URL = `${APP_BASE}/api/v1`;
-
-export const resolveFileUrl = (url) => {
-  if (!url) return '#';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `${APP_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
-};
 
 const portalClient = axios.create({
   baseURL: API_BASE_URL,

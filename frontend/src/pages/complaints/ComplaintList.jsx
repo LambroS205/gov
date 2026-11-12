@@ -29,24 +29,13 @@ import {
   EnvironmentOutlined,
   TableOutlined,
 } from '@ant-design/icons';
-import { complaintsApi, usersApi, resolveFileUrl } from '../../api/client';
+import { complaintsApi, usersApi, resolveFileUrl, parsePhotos } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import ComplaintMap from '../../components/complaints/ComplaintMap';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
-
-const parsePhotos = (val) => {
-  if (!val) return [];
-  if (Array.isArray(val)) return val;
-  try {
-    const parsed = JSON.parse(val);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return typeof val === 'string' && val.trim() ? [val.trim()] : [];
-  }
-};
 
 export default function ComplaintList() {
   const [loading, setLoading] = useState(false);

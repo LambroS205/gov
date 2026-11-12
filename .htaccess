@@ -2,19 +2,44 @@
     RewriteEngine On
     RewriteBase /gov/
 
-    # Chặn truy cập trực tiếp vào thư mục mã nguồn/tệp SQL nhạy cảm
-    RewriteRule ^\.git(/|$) - [F,L]
-    RewriteRule \.(sql|env|log)$ - [F,L]
+    # 1. Chặn truy cập trực tiếp vào thư mục mã nguồn/CSDL nội bộ
+    RewriteRule ^(\.git|database|frontend|scratch)(/|$) - [F,L]
+    
+    # 2. Chặn truy cập tệp cấu hình, CSDL, tài liệu nhạy cảm
+    RewriteRule \.(sql|env|log|md|json|lock)$ - [F,L]
 
-    # Bỏ qua định tuyến cho API backend và uploads
+    # 3. Bỏ qua định tuyến cho API backend và thư mục uploads
     RewriteRule ^api/ - [L]
     RewriteRule ^uploads/ - [L]
 
-    # Nếu tệp hoặc thư mục tồn tại thực tế, tải trực tiếp
+    # 4. Nếu tệp hoặc thư mục tĩnh tồn tại thực tế, tải trực tiếp
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # Các route giao diện React SPA chuyển hướng về index.html
+    # 5. Các route giao diện React SPA chuyển hướng về index.html
     RewriteRule ^ index.html [L]
+</IfModule>
+
+# Nén dữ liệu truyền tải (Gzip / Deflate)
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/x-javascript application/json image/svg+xml
+</IfModule>
+
+# Cấu hình Bộ nhớ đệm (Cache-Control) cho tài nguyên tĩnh
+<IfModule mod_headers.c>
+    # Các gói tài nguyên tĩnh đã có mã băm (hash) cache 30 ngày
+    <FilesMatch "\.(js|css|svg|woff2|woff|ttf|png|jpg|jpeg|gif|ico)$">
+        Header set Cache-Control "max-age=2592000, public"
+    </FilesMatch>
+    
+    # Tệp index.html không cache để luôn cập nhật phiên bản mới nhất
+    <FilesMatch "^(index\.html)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+
+    # Bảo vệ an toàn thông tin & chống tấn công Clickjacking / MIME-sniffing
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
 </IfModule>

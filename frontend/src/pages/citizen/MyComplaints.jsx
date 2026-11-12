@@ -25,22 +25,11 @@ import {
   ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { citizenPortalApi, resolveFileUrl } from '../../api/portalClient';
+import { citizenPortalApi, resolveFileUrl, parsePhotos } from '../../api/portalClient';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
-
-const parsePhotos = (val) => {
-  if (!val) return [];
-  if (Array.isArray(val)) return val;
-  try {
-    const parsed = JSON.parse(val);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return typeof val === 'string' && val.trim() ? [val.trim()] : [];
-  }
-};
 
 export default function MyComplaints() {
   const navigate = useNavigate();

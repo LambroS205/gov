@@ -123,11 +123,7 @@ class QueueController {
             WHERE status = "DA_PHUC_VU" AND DATE(created_at) = CURDATE()
         ')->fetchColumn();
 
-        $totalWaiting = (int)$db->query('
-            SELECT COUNT(*) 
-            FROM queue_tickets 
-            WHERE status = "CHO" AND DATE(created_at) = CURDATE()
-        ')->fetchColumn();
+        $totalWaiting = (int)array_sum($waitingMap);
 
         Response::json([
             'calling' => $calling,

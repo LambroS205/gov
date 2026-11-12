@@ -7,43 +7,16 @@ if (php_sapi_name() !== 'cli' && ($_GET['confirm'] ?? '') !== 'reset_demo_data_2
     die("Từ chối truy cập: Script nạp lại CSDL chỉ được phép chạy từ dòng lệnh (CLI): php database/import_seed.php hoặc có khóa xác nhận (?confirm=reset_demo_data_2026).\n");
 }
 
-require_once dirname(__DIR__) . '/api/core/Database.php';
+require_once __DIR__ . '/demo_refresh.php';
 
 try {
-    $db = Database::getConnection();
-    $db->exec('SET NAMES utf8mb4');
-    $db->exec('SET CHARACTER SET utf8mb4');
-
-    $sqlFile = __DIR__ . '/seed_data.sql';
-    if (!file_exists($sqlFile)) {
-        die("Không tìm thấy tệp seed_data.sql\n");
-    }
-
-    $sql = file_get_contents($sqlFile);
-    // Tách câu lệnh theo dấu chấm phẩy
-    $db->exec($sql);
-
+    $res = refresh_demo_data();
     echo "=== NẠP DỮ LIỆU MẪU THÀNH CÔNG (CHUẨN UTF-8) ===\n";
-
-    // Kiểm tra kiểm tra lại một số bản ghi
-    $users = $db->query('SELECT username, full_name, role FROM users LIMIT 5')->fetchAll();
-    echo "\nDanh sách cán bộ kiểm tra:\n";
-    foreach ($users as $u) {
-        echo sprintf(" - [%s] %s (%s)\n", $u['username'], $u['full_name'], $u['role']);
-    }
-
-    $procs = $db->query('SELECT proc_code, proc_name FROM administrative_procedures LIMIT 5')->fetchAll();
-    echo "\nDanh sách thủ tục TTHC kiểm tra:\n";
-    foreach ($procs as $p) {
-        echo sprintf(" - [%s] %s\n", $p['proc_code'], $p['proc_name']);
-    }
-
-    $apps = $db->query('SELECT dossier_code, citizen_name, status FROM applications LIMIT 5')->fetchAll();
-    echo "\nDanh sách hồ sơ kiểm tra:\n";
-    foreach ($apps as $a) {
-        echo sprintf(" - [%s] %s (%s)\n", $a['dossier_code'], $a['citizen_name'], $a['status']);
-    }
-
+    echo sprintf("Thời gian hệ thống: %s\n", $res['current_date']);
+    echo sprintf("Tài khoản cán bộ: %d | Công dân: %d | Tài khoản công dân: %d\n", $res['users_count'], $res['citizens_count'], $res['citizen_accounts_count']);
+    echo sprintf("Tổng hồ sơ: %d (Đã giải quyết: %d | Đang xử lý: %d | Cảnh báo SLA: %d | Quá hạn: %d)\n", $res['total_applications'], $res['completed_applications'], $res['pending_applications'], $res['warning_count'], $res['overdue_count']);
+    echo sprintf("Tổng phản ánh: %d (Đã xử lý: %d | Chưa xử lý: %d)\n", $res['total_complaints'], $res['resolved_complaints'], $res['pending_complaints']);
+    echo sprintf("Vé bốc số hôm nay: %d\n", $res['queue_tickets']);
 } catch (Throwable $e) {
     echo "LỖI KHI NẠP DỮ LIỆU: " . $e->getMessage() . "\n";
     exit(1);

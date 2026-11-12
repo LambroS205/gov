@@ -1,0 +1,22 @@
+# Node dependencies
+node_modules/
+frontend/node_modules/
+
+# Build artifacts
+frontend/dist/
+
+# Scratch & temporary testing files
+scratch/
+*.log
+*.tmp
+
+# Environment variables & local secrets
+.env
+.env.local
+.env.*.local
+
+# OS generated files
+Thumbs.db
+.DS_Store
+*.swp
+

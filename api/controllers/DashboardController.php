@@ -5,99 +5,65 @@ class DashboardController {
         Auth::requireAuth($request);
         $db = Database::getConnection();
 
-        // 1. Thống kê hồ sơ theo trạng thái
+        // 1. Gộp toàn bộ chỉ số tổng hợp trên bảng applications thành 1 câu truy vấn điều kiện duy nhất
+        $appAggregates = $db->query("
+            SELECT 
+                COUNT(*) as total_apps,
+                SUM(CASE WHEN DATE(submit_date) = CURDATE() THEN 1 ELSE 0 END) as today_received,
+                SUM(CASE WHEN status = 'HOAN_THANH' AND MONTH(completed_date) = MONTH(CURDATE()) AND YEAR(completed_date) = YEAR(CURDATE()) THEN 1 ELSE 0 END) as month_completed,
+                SUM(CASE WHEN status = 'HOAN_THANH' THEN 1 ELSE 0 END) as total_done,
+                SUM(CASE WHEN status = 'HOAN_THANH' AND completed_date < appointment_date THEN 1 ELSE 0 END) as early_done,
+                SUM(CASE WHEN status = 'HOAN_THANH' AND completed_date <= appointment_date THEN 1 ELSE 0 END) as on_time_done,
+                SUM(CASE WHEN submit_channel = 'TRUC_TUYEN' THEN 1 ELSE 0 END) as online_apps,
+                COUNT(satisfaction_score) as total_ratings,
+                COALESCE(AVG(satisfaction_score), 5.0) as avg_score,
+                SUM(CASE WHEN satisfaction_score >= 4 THEN 1 ELSE 0 END) as satisfied_count,
+                SUM(CASE WHEN payment_status = 'DA_THANH_TOAN' THEN 1 ELSE 0 END) as paid_count,
+                SUM(CASE WHEN payment_status = 'CHUA_THANH_TOAN' AND status NOT IN ('HOAN_THANH', 'TU_CHOI') THEN 1 ELSE 0 END) as unpaid_count,
+                SUM(CASE WHEN status NOT IN ('HOAN_THANH', 'TU_CHOI') AND NOW() > appointment_date THEN 1 ELSE 0 END) as overdue_count,
+                SUM(CASE WHEN status NOT IN ('HOAN_THANH', 'TU_CHOI') AND appointment_date >= NOW() AND TIMESTAMPDIFF(HOUR, NOW(), appointment_date) <= 24 THEN 1 ELSE 0 END) as warning_count
+            FROM applications
+        ")->fetch();
+
+        // 2. Thống kê số lượng theo từng trạng thái hồ sơ (1 query GROUP BY)
         $statusCounts = $db->query('
             SELECT status, COUNT(*) as count 
             FROM applications 
             GROUP BY status
         ')->fetchAll(PDO::FETCH_KEY_PAIR);
 
-        // 2. Tổng hồ sơ tiếp nhận hôm nay
-        $todayReceived = $db->query("
-            SELECT COUNT(*) 
-            FROM applications 
-            WHERE DATE(submit_date) = CURDATE()
-        ")->fetchColumn();
+        $totalDone = (int)($appAggregates['total_done'] ?? 0);
+        $onTimeRate = $totalDone > 0 ? round(((int)$appAggregates['on_time_done'] / $totalDone) * 100, 1) : 100.0;
+        $earlyRate = $totalDone > 0 ? round(((int)$appAggregates['early_done'] / $totalDone) * 100, 1) : 0;
+        $totalApps = (int)($appAggregates['total_apps'] ?? 0);
+        $onlineRate = $totalApps > 0 ? round(((int)$appAggregates['online_apps'] / $totalApps) * 100, 1) : 0;
+        $totalRatings = (int)($appAggregates['total_ratings'] ?? 0);
+        $satisfiedRate = $totalRatings > 0 ? round(((int)$appAggregates['satisfied_count'] / $totalRatings) * 100, 1) : 100.0;
 
-        // 3. Tổng hồ sơ hoàn thành trong tháng
-        $monthCompleted = $db->query("
-            SELECT COUNT(*) 
-            FROM applications 
-            WHERE status = 'HOAN_THANH' AND MONTH(completed_date) = MONTH(CURDATE()) AND YEAR(completed_date) = YEAR(CURDATE())
-        ")->fetchColumn();
-
-        // 4. Tỉ lệ hồ sơ giải quyết đúng hạn (%)
-        $onTimeData = $db->query("
+        // 3. Thống kê dân cư & tổ dân phố (1 query tổng hợp)
+        $demographics = $db->query('
             SELECT 
-                COUNT(*) as total_finished,
-                SUM(CASE WHEN completed_date <= appointment_date THEN 1 ELSE 0 END) as on_time
-            FROM applications
-            WHERE status = 'HOAN_THANH'
-        ")->fetch();
+                (SELECT COUNT(*) FROM citizens) as total_citizens,
+                (SELECT COALESCE(SUM(total_households), 0) FROM residential_areas) as total_households,
+                (SELECT COUNT(*) FROM residential_areas) as total_areas
+        ')->fetch();
 
-        $onTimeRate = 100.0;
-        if (!empty($onTimeData['total_finished']) && (int)$onTimeData['total_finished'] > 0) {
-            $onTimeRate = round(($onTimeData['on_time'] / $onTimeData['total_finished']) * 100, 1);
-        }
-
-        // 5. Thống kê dân cư & tổ dân phố
-        $totalCitizens = $db->query('SELECT COUNT(*) FROM citizens')->fetchColumn();
-        $totalHouseholds = $db->query('SELECT SUM(total_households) FROM residential_areas')->fetchColumn() ?: 0;
-        $totalAreas = $db->query('SELECT COUNT(*) FROM residential_areas')->fetchColumn();
-
-        // 6. Thống kê phản ánh kiến nghị
+        // 4. Thống kê phản ánh kiến nghị (1 query GROUP BY)
         $complaintStats = $db->query('
             SELECT status, COUNT(*) as count 
             FROM complaints 
             GROUP BY status
         ')->fetchAll(PDO::FETCH_KEY_PAIR);
 
-        // 7. Thống kê theo chuẩn Quyết định 766/QĐ-TTg
-        // a. Tỷ lệ trực tuyến
-        $totalApps = (int)$db->query("SELECT COUNT(*) FROM applications")->fetchColumn();
-        $onlineApps = (int)$db->query("SELECT COUNT(*) FROM applications WHERE submit_channel = 'TRUC_TUYEN'")->fetchColumn();
-        $onlineRate = $totalApps > 0 ? round(($onlineApps / $totalApps) * 100, 1) : 0;
-
-        // b. Tỷ lệ trước hạn & đúng hạn
-        $finishedDetails = $db->query("
-            SELECT 
-                COUNT(*) as total_done,
-                SUM(CASE WHEN completed_date < appointment_date THEN 1 ELSE 0 END) as early_done,
-                SUM(CASE WHEN completed_date <= appointment_date THEN 1 ELSE 0 END) as on_time_done
-            FROM applications 
-            WHERE status = 'HOAN_THANH'
-        ")->fetch();
-        $totalDone = (int)($finishedDetails['total_done'] ?? 0);
-        $earlyRate = $totalDone > 0 ? round(((int)$finishedDetails['early_done'] / $totalDone) * 100, 1) : 0;
-
-        // c. Đánh giá hài lòng CSAT
-        $csatStats = $db->query("
-            SELECT 
-                COUNT(*) as total_ratings,
-                AVG(satisfaction_score) as avg_score,
-                SUM(CASE WHEN satisfaction_score >= 4 THEN 1 ELSE 0 END) as satisfied_count
-            FROM applications 
-            WHERE satisfaction_score IS NOT NULL
-        ")->fetch();
-        $totalRatings = (int)($csatStats['total_ratings'] ?? 0);
-        $avgScore = $totalRatings > 0 ? round((float)$csatStats['avg_score'], 1) : 5.0;
-        $satisfiedRate = $totalRatings > 0 ? round(((int)$csatStats['satisfied_count'] / $totalRatings) * 100, 1) : 100.0;
-
-        // d. Thu phí & Lệ phí
-        $paidCount = (int)$db->query("SELECT COUNT(*) FROM applications WHERE payment_status = 'DA_THANH_TOAN'")->fetchColumn();
-        $unpaidCount = (int)$db->query("SELECT COUNT(*) FROM applications WHERE payment_status = 'CHUA_THANH_TOAN' AND status NOT IN ('HOAN_THANH', 'TU_CHOI')")->fetchColumn();
-        $totalFee = $db->query("
+        // 5. Tổng phí/lệ phí thu được
+        $totalFee = (float)$db->query("
             SELECT COALESCE(SUM(p.fee_amount), 0)
             FROM applications a
             JOIN administrative_procedures p ON a.procedure_id = p.id
             WHERE a.payment_status = 'DA_THANH_TOAN'
-        ")->fetchColumn() ?: 0;
+        ")->fetchColumn();
 
-        // e. Cảnh báo hạn xử lý SLA (Traffic Light)
-        $overdueCount = (int)$db->query("SELECT COUNT(*) FROM applications WHERE status NOT IN ('HOAN_THANH', 'TU_CHOI') AND NOW() > appointment_date")->fetchColumn();
-        $warningCount = (int)$db->query("SELECT COUNT(*) FROM applications WHERE status NOT IN ('HOAN_THANH', 'TU_CHOI') AND appointment_date >= NOW() AND TIMESTAMPDIFF(HOUR, NOW(), appointment_date) <= 24")->fetchColumn();
-
-        // Top 5 hồ sơ sắp đến hạn hoặc quá hạn cần xử lý gấp
+        // 6. Top 5 hồ sơ sắp đến hạn hoặc quá hạn cần xử lý gấp
         $alertItems = $db->query("
             SELECT 
                 a.id, a.dossier_code, a.citizen_name, a.appointment_date, a.status,
@@ -113,8 +79,8 @@ class DashboardController {
 
         Response::json([
             'applications' => [
-                'total_today' => (int)$todayReceived,
-                'total_month_completed' => (int)$monthCompleted,
+                'total_today' => (int)($appAggregates['today_received'] ?? 0),
+                'total_month_completed' => (int)($appAggregates['month_completed'] ?? 0),
                 'on_time_rate' => (float)$onTimeRate,
                 'early_rate' => (float)$earlyRate,
                 'online_rate' => (float)$onlineRate,
@@ -127,19 +93,19 @@ class DashboardController {
                 'total_active' => (int)(($statusCounts['CHO_TIEP_NHAN'] ?? 0) + ($statusCounts['DANG_XU_LY'] ?? 0) + ($statusCounts['CHO_KY_DUYET'] ?? 0) + ($statusCounts['DA_KY_SO'] ?? 0))
             ],
             'sla_alerts' => [
-                'overdue_count' => $overdueCount,
-                'warning_count' => $warningCount,
+                'overdue_count' => (int)($appAggregates['overdue_count'] ?? 0),
+                'warning_count' => (int)($appAggregates['warning_count'] ?? 0),
                 'items' => $alertItems
             ],
             'csat' => [
-                'average_score' => $avgScore,
+                'average_score' => round((float)$appAggregates['avg_score'], 1),
                 'total_ratings' => $totalRatings,
                 'satisfied_rate' => $satisfiedRate
             ],
             'citizens' => [
-                'total_citizens' => (int)$totalCitizens,
-                'total_households' => (int)$totalHouseholds,
-                'total_areas' => (int)$totalAreas
+                'total_citizens' => (int)($demographics['total_citizens'] ?? 0),
+                'total_households' => (int)($demographics['total_households'] ?? 0),
+                'total_areas' => (int)($demographics['total_areas'] ?? 0)
             ],
             'complaints' => [
                 'moi' => (int)($complaintStats['MOI'] ?? 0),
@@ -148,9 +114,9 @@ class DashboardController {
                 'total' => (int)array_sum($complaintStats)
             ],
             'finance' => [
-                'total_fee_collected' => (float)$totalFee,
-                'paid_count' => $paidCount,
-                'unpaid_count' => $unpaidCount
+                'total_fee_collected' => $totalFee,
+                'paid_count' => (int)($appAggregates['paid_count'] ?? 0),
+                'unpaid_count' => (int)($appAggregates['unpaid_count'] ?? 0)
             ]
         ], 200, 'Lấy thống kê tổng quan thành công');
     }
@@ -183,25 +149,36 @@ class DashboardController {
             ];
         }, $byField);
 
-        // 2. Xu hướng tiếp nhận trong 7 ngày gần nhất
+        // 2. Xu hướng tiếp nhận trong 7 ngày gần nhất (Tối ưu: 2 truy vấn GROUP BY thay vì 14 truy vấn N+1)
+        $startDate = date('Y-m-d 00:00:00', strtotime('-6 days'));
+
+        $stmtReceived = $db->prepare('
+            SELECT DATE(submit_date) as dt, COUNT(*) as cnt
+            FROM applications
+            WHERE submit_date >= ?
+            GROUP BY DATE(submit_date)
+        ');
+        $stmtReceived->execute([$startDate]);
+        $receivedMap = $stmtReceived->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $stmtCompleted = $db->prepare("
+            SELECT DATE(completed_date) as dt, COUNT(*) as cnt
+            FROM applications
+            WHERE status = 'HOAN_THANH' AND completed_date >= ?
+            GROUP BY DATE(completed_date)
+        ");
+        $stmtCompleted->execute([$startDate]);
+        $completedMap = $stmtCompleted->fetchAll(PDO::FETCH_KEY_PAIR);
+
         $trends = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = date('Y-m-d', strtotime("-$i days"));
             $displayDate = date('d/m', strtotime("-$i days"));
-
-            $stmt = $db->prepare('SELECT COUNT(*) FROM applications WHERE DATE(submit_date) = ?');
-            $stmt->execute([$date]);
-            $received = (int)$stmt->fetchColumn();
-
-            $stmt2 = $db->prepare("SELECT COUNT(*) FROM applications WHERE status = 'HOAN_THANH' AND DATE(completed_date) = ?");
-            $stmt2->execute([$date]);
-            $completed = (int)$stmt2->fetchColumn();
-
             $trends[] = [
                 'date' => $displayDate,
                 'full_date' => $date,
-                'tiep_nhan' => $received,
-                'hoan_thanh' => $completed
+                'tiep_nhan' => (int)($receivedMap[$date] ?? 0),
+                'hoan_thanh' => (int)($completedMap[$date] ?? 0)
             ];
         }
 
@@ -242,26 +219,21 @@ class DashboardController {
     public function publicBoard(Request $request): void {
         $db = Database::getConnection();
 
-        // 1. Chỉ số tổng hợp
-        $todayReceived = (int)$db->query("SELECT COUNT(*) FROM applications WHERE DATE(submit_date) = CURDATE()")->fetchColumn();
-        $todayCompleted = (int)$db->query("SELECT COUNT(*) FROM applications WHERE status = 'HOAN_THANH' AND DATE(completed_date) = CURDATE()")->fetchColumn();
-        $monthCompleted = (int)$db->query("SELECT COUNT(*) FROM applications WHERE status = 'HOAN_THANH' AND MONTH(completed_date) = MONTH(CURDATE()) AND YEAR(completed_date) = YEAR(CURDATE())")->fetchColumn();
-        $activeCount = (int)$db->query("SELECT COUNT(*) FROM applications WHERE status NOT IN ('HOAN_THANH', 'TU_CHOI')")->fetchColumn();
-
-        $onTimeData = $db->query("
+        // 1. Chỉ số tổng hợp (Gộp thành 1 truy vấn duy nhất trên applications)
+        $aggregates = $db->query("
             SELECT 
-                COUNT(*) as total_finished,
-                SUM(CASE WHEN completed_date <= appointment_date THEN 1 ELSE 0 END) as on_time
+                SUM(CASE WHEN DATE(submit_date) = CURDATE() THEN 1 ELSE 0 END) as today_received,
+                SUM(CASE WHEN status = 'HOAN_THANH' AND DATE(completed_date) = CURDATE() THEN 1 ELSE 0 END) as today_completed,
+                SUM(CASE WHEN status = 'HOAN_THANH' AND MONTH(completed_date) = MONTH(CURDATE()) AND YEAR(completed_date) = YEAR(CURDATE()) THEN 1 ELSE 0 END) as month_completed,
+                SUM(CASE WHEN status NOT IN ('HOAN_THANH', 'TU_CHOI') THEN 1 ELSE 0 END) as active_count,
+                SUM(CASE WHEN status = 'HOAN_THANH' THEN 1 ELSE 0 END) as total_done,
+                SUM(CASE WHEN status = 'HOAN_THANH' AND completed_date <= appointment_date THEN 1 ELSE 0 END) as on_time_done,
+                COALESCE(AVG(satisfaction_score), 5.0) as csat_score
             FROM applications
-            WHERE status = 'HOAN_THANH'
         ")->fetch();
 
-        $onTimeRate = 100.0;
-        if (!empty($onTimeData['total_finished']) && (int)$onTimeData['total_finished'] > 0) {
-            $onTimeRate = round(($onTimeData['on_time'] / $onTimeData['total_finished']) * 100, 1);
-        }
-
-        $csatAvg = (float)$db->query("SELECT COALESCE(AVG(satisfaction_score), 5.0) FROM applications WHERE satisfaction_score IS NOT NULL")->fetchColumn();
+        $totalDone = (int)($aggregates['total_done'] ?? 0);
+        $onTimeRate = $totalDone > 0 ? round(((int)$aggregates['on_time_done'] / $totalDone) * 100, 1) : 100.0;
 
         // 2. Danh sách 10 hồ sơ vừa hoàn thành hoặc đang xử lý gần nhất (đã che tên)
         $recentApps = $db->query("
@@ -313,12 +285,12 @@ class DashboardController {
             'server_time' => date('H:i:s'),
             'server_date' => date('d/m/Y'),
             'metrics' => [
-                'today_received' => $todayReceived,
-                'today_completed' => $todayCompleted,
-                'month_completed' => $monthCompleted,
-                'active_count' => $activeCount,
+                'today_received' => (int)($aggregates['today_received'] ?? 0),
+                'today_completed' => (int)($aggregates['today_completed'] ?? 0),
+                'month_completed' => (int)($aggregates['month_completed'] ?? 0),
+                'active_count' => (int)($aggregates['active_count'] ?? 0),
                 'on_time_rate' => $onTimeRate,
-                'csat_score' => round($csatAvg, 1),
+                'csat_score' => round((float)($aggregates['csat_score'] ?? 5.0), 1),
                 'waiting_queue' => $waitingTotal
             ],
             'recent_dossiers' => $maskedApps,

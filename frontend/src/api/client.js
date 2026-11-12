@@ -11,6 +11,17 @@ export const resolveFileUrl = (url) => {
   return `${APP_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
+export const parsePhotos = (val) => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try {
+    const parsed = JSON.parse(val);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return typeof val === 'string' && val.trim() ? [val.trim()] : [];
+  }
+};
+
 const client = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,

@@ -51,6 +51,7 @@ import {
   proceduresApi,
   publicUploadApi,
   resolveFileUrl,
+  parsePhotos,
 } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCitizenAuth } from '../../contexts/CitizenAuthContext';
@@ -60,17 +61,6 @@ import dayjs from 'dayjs';
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
-
-const parsePhotos = (val) => {
-  if (!val) return [];
-  if (Array.isArray(val)) return val;
-  try {
-    const parsed = JSON.parse(val);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return typeof val === 'string' && val.trim() ? [val.trim()] : [];
-  }
-};
 
 export default function TrackingSearch() {
   const [activeTab, setActiveTab] = useState('track');

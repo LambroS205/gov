@@ -1,0 +1,17 @@
+# Chặn hoàn toàn việc thực thi mã script máy chủ (PHP, Perl, CGI, ...) trong thư mục uploads
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+# Chặn truy cập hoặc thực thi các tệp kịch bản
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|php8|phar|cgi|pl|sh|bash)$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+

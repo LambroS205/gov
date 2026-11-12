@@ -97,6 +97,7 @@ CREATE TABLE applications (
     INDEX idx_app_cacc (citizen_account_id),
     INDEX idx_submit_date (submit_date),
     INDEX idx_appointment (appointment_date),
+    INDEX idx_completed_date (completed_date),
     INDEX idx_handler (current_handler_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -193,6 +194,8 @@ CREATE TABLE complaints (
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
     location TEXT NULL,
+    latitude DECIMAL(10, 7) NULL,
+    longitude DECIMAL(10, 7) NULL,
     photo_paths LONGTEXT NULL, -- JSON lưu danh sách URL ảnh
     resolved_photo_paths LONGTEXT NULL, -- JSON lưu danh sách URL ảnh kết quả xử lý thực tế
     status ENUM('MOI', 'DANG_XU_LY', 'DA_XU_LY', 'DONG') DEFAULT 'MOI',
@@ -299,6 +302,27 @@ CREATE TABLE citizen_otps (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_otp_phone (phone_number, purpose),
     INDEX idx_otp_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 15. Bảng Phiếu bốc số thứ tự Một cửa (Queue Tickets)
+DROP TABLE IF EXISTS queue_tickets;
+CREATE TABLE queue_tickets (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    ticket_number VARCHAR(10) NOT NULL,
+    counter_type ENUM('HO_TICH', 'CHUNG_THUC', 'DIA_CHINH', 'LAO_DONG_TBXH', 'KHAC') NOT NULL,
+    service_name VARCHAR(150) NOT NULL,
+    citizen_name VARCHAR(100) NULL,
+    citizen_phone VARCHAR(15) NULL,
+    counter_no INT UNSIGNED DEFAULT 1,
+    status ENUM('CHO', 'DANG_GOI', 'DA_PHUC_VU', 'BO_QUA') NOT NULL DEFAULT 'CHO',
+    called_by CHAR(36) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    called_at DATETIME NULL,
+    completed_at DATETIME NULL,
+    CONSTRAINT fk_queue_user FOREIGN KEY (called_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_queue_status (status),
+    INDEX idx_queue_created (created_at),
+    INDEX idx_queue_type (counter_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
