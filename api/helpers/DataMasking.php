@@ -24,6 +24,27 @@ class DataMasking {
     }
 
     /**
+     * Che mờ tên công dân phục vụ hiển thị công khai trên màn hình TV (Nghị định 13/2023)
+     * Ví dụ: "Nguyễn Văn Cường" -> "Nguyễn V** Cường"
+     */
+    public static function maskName(?string $name): string {
+        if (!$name) return '';
+        $words = explode(' ', trim($name));
+        if (count($words) <= 1) return $name;
+        $first = $words[0];
+        $last = $words[count($words) - 1];
+        if (count($words) === 2) {
+            return $first . ' * ' . $last;
+        }
+        $middle = [];
+        for ($i = 1; $i < count($words) - 1; $i++) {
+            $w = $words[$i];
+            $middle[] = mb_substr($w, 0, 1, 'UTF-8') . '**';
+        }
+        return $first . ' ' . implode(' ', $middle) . ' ' . $last;
+    }
+
+    /**
      * Áp dụng che mờ dữ liệu cho mảng hồ sơ công dân
      */
     public static function maskCitizenRecord(array $row, bool $canViewFull = false): array {

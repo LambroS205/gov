@@ -14,6 +14,8 @@ import {
   Col,
   Descriptions,
   Alert,
+  Radio,
+  Image,
   message,
 } from 'antd';
 import {
@@ -24,13 +26,27 @@ import {
   CheckCircleOutlined,
   UserSwitchOutlined,
   CommentOutlined,
+  EnvironmentOutlined,
+  TableOutlined,
 } from '@ant-design/icons';
-import { complaintsApi, usersApi } from '../../api/client';
+import { complaintsApi, usersApi, resolveFileUrl } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+import ComplaintMap from '../../components/complaints/ComplaintMap';
 import dayjs from 'dayjs';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
+
+const parsePhotos = (val) => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try {
+    const parsed = JSON.parse(val);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return typeof val === 'string' && val.trim() ? [val.trim()] : [];
+  }
+};
 
 export default function ComplaintList() {
   const [loading, setLoading] = useState(false);
@@ -41,6 +57,7 @@ export default function ComplaintList() {
 
   const [status, setStatus] = useState(null);
   const [category, setCategory] = useState(null);
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'map'
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -286,24 +303,47 @@ export default function ComplaintList() {
               <Select.Option value="DIEN_NUOC">Điện nước công cộng</Select.Option>
             </Select>
           </Col>
+
+          <Col xs={24} sm={10} style={{ textAlign: 'right' }}>
+            <Radio.Group
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value)}
+              buttonStyle="solid"
+            >
+              <Radio.Button value="table">
+                <TableOutlined style={{ marginRight: 6 }} />
+                Dạng Bảng
+              </Radio.Button>
+              <Radio.Button value="map">
+                <EnvironmentOutlined style={{ marginRight: 6, color: '#dc2626' }} />
+                Bản đồ số (GIS)
+              </Radio.Button>
+            </Radio.Group>
+          </Col>
         </Row>
 
-        <Table
-          columns={columns}
-          dataSource={data}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            onChange: (p, ps) => {
-              setPage(p);
-              setPageSize(ps);
-            },
-          }}
-          scroll={{ x: 900 }}
-        />
+        {viewMode === 'map' ? (
+          <div style={{ marginTop: 8 }}>
+            <ComplaintMap complaints={data} onSelectComplaint={handleOpenDetail} />
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={data}
+            rowKey="id"
+            loading={loading}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              onChange: (p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              },
+            }}
+            scroll={{ x: 900 }}
+          />
+        )}
       </Card>
 
       {/* Modal Xem chi tiết Phản ánh */}
@@ -342,21 +382,47 @@ export default function ComplaintList() {
                 </Paragraph>
               </Descriptions.Item>
 
-              {selectedComplaint.photo_paths && (
+              {parsePhotos(selectedComplaint.photo_paths).length > 0 && (
                 <Descriptions.Item label="Ảnh hiện trường ban đầu (Trước)" span={2}>
-                  <Tag color="volcano">Ảnh công dân gửi</Tag>
-                  <div style={{ marginTop: 6, fontStyle: 'italic', fontSize: 12, color: '#64748b' }}>
-                    {selectedComplaint.photo_paths}
+                  <div style={{ marginBottom: 6 }}>
+                    <Tag color="volcano">Ảnh công dân gửi ({parsePhotos(selectedComplaint.photo_paths).length})</Tag>
                   </div>
+                  <Image.PreviewGroup>
+                    <Space wrap size="small">
+                      {parsePhotos(selectedComplaint.photo_paths).map((p, idx) => (
+                        <Image
+                          key={idx}
+                          width={90}
+                          height={90}
+                          src={resolveFileUrl(p)}
+                          style={{ objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }}
+                          fallback="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'><rect width='90' height='90' fill='%23f1f5f9'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-size='11'>Ảnh lỗi</text></svg>"
+                        />
+                      ))}
+                    </Space>
+                  </Image.PreviewGroup>
                 </Descriptions.Item>
               )}
 
-              {selectedComplaint.resolved_photo_paths && (
+              {parsePhotos(selectedComplaint.resolved_photo_paths).length > 0 && (
                 <Descriptions.Item label="Ảnh minh chứng khắc phục (Sau khi xử lý)" span={2}>
-                  <Tag color="success">Ảnh kết quả thực tế</Tag>
-                  <div style={{ marginTop: 6, fontStyle: 'italic', fontSize: 12, color: '#15803d' }}>
-                    {selectedComplaint.resolved_photo_paths}
+                  <div style={{ marginBottom: 6 }}>
+                    <Tag color="success">Ảnh kết quả thực tế ({parsePhotos(selectedComplaint.resolved_photo_paths).length})</Tag>
                   </div>
+                  <Image.PreviewGroup>
+                    <Space wrap size="small">
+                      {parsePhotos(selectedComplaint.resolved_photo_paths).map((rp, idx) => (
+                        <Image
+                          key={idx}
+                          width={90}
+                          height={90}
+                          src={resolveFileUrl(rp)}
+                          style={{ objectFit: 'cover', borderRadius: 8, border: '2px solid #86efac' }}
+                          fallback="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'><rect width='90' height='90' fill='%23f1f5f9'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-size='11'>Ảnh lỗi</text></svg>"
+                        />
+                      ))}
+                    </Space>
+                  </Image.PreviewGroup>
                 </Descriptions.Item>
               )}
 

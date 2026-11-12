@@ -21,6 +21,7 @@ import {
   Col,
   Result,
   Badge,
+  QRCode,
   message,
 } from 'antd';
 import {
@@ -43,7 +44,7 @@ import {
   CompassOutlined,
   PrinterOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   applicationsApi,
   complaintsApi,
@@ -59,6 +60,17 @@ import dayjs from 'dayjs';
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
+
+const parsePhotos = (val) => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try {
+    const parsed = JSON.parse(val);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return typeof val === 'string' && val.trim() ? [val.trim()] : [];
+  }
+};
 
 export default function TrackingSearch() {
   const [activeTab, setActiveTab] = useState('track');
@@ -88,8 +100,11 @@ export default function TrackingSearch() {
   const [submittingRating, setSubmittingRating] = useState(false);
   const [qrApp, setQrApp] = useState(null);
 
-  const handleSearch = async () => {
-    if (!code.trim()) {
+  const [searchParams] = useSearchParams();
+
+  const handleSearch = async (targetCode) => {
+    const searchCode = (typeof targetCode === 'string' ? targetCode : code).trim();
+    if (!searchCode) {
       setErrorMsg('Vui lòng nhập Mã hồ sơ để tra cứu (Ví dụ: 000.00.00.H49-...)');
       return;
     }
@@ -98,7 +113,7 @@ export default function TrackingSearch() {
     setErrorMsg('');
     setResults(null);
     try {
-      const res = await portalPublicApi.track(code.trim());
+      const res = await portalPublicApi.track(searchCode);
       if (res?.data && res.data.length > 0) {
         setResults(res.data);
       } else {
@@ -295,6 +310,8 @@ export default function TrackingSearch() {
         citizen_cccd: citizen ? citizen.cccd_number : (values.citizen_cccd || ''),
         category: values.category,
         location: values.location,
+        latitude: values.latitude || 21.7168,
+        longitude: values.longitude || 104.8965,
         title: values.title,
         description: values.description,
         photo_paths: complaintPhotos,
@@ -327,8 +344,9 @@ export default function TrackingSearch() {
   const [complaintResults, setComplaintResults] = useState(null);
   const [complaintError, setComplaintError] = useState('');
 
-  const handleSearchComplaint = async () => {
-    if (!complaintSearchQuery.trim()) {
+  const handleSearchComplaint = async (targetQuery) => {
+    const q = (typeof targetQuery === 'string' ? targetQuery : complaintSearchQuery).trim();
+    if (!q) {
       setComplaintError('Vui lòng nhập Mã phản ánh (Ví dụ: PAKN-...) để tra cứu');
       return;
     }
@@ -337,7 +355,7 @@ export default function TrackingSearch() {
     setComplaintError('');
     setComplaintResults(null);
     try {
-      const res = await portalPublicApi.trackComplaint(complaintSearchQuery.trim());
+      const res = await portalPublicApi.trackComplaint(q);
       if (res?.data && res.data.length > 0) {
         setComplaintResults(res.data);
       } else {
@@ -349,6 +367,26 @@ export default function TrackingSearch() {
       setComplaintLoading(false);
     }
   };
+
+  useEffect(() => {
+    const codeParam = searchParams.get('code') || searchParams.get('dossier_code');
+    const complaintParam = searchParams.get('complaint') || searchParams.get('complaint_code');
+    const tabParam = searchParams.get('tab');
+
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+
+    if (codeParam) {
+      setActiveTab('track');
+      setCode(codeParam);
+      handleSearch(codeParam);
+    } else if (complaintParam) {
+      setActiveTab('complaint_track');
+      setComplaintSearchQuery(complaintParam);
+      handleSearchComplaint(complaintParam);
+    }
+  }, [searchParams]);
 
   const categoryNames = {
     RAC_THAI: 'Rác thải & Môi trường',
@@ -623,13 +661,38 @@ export default function TrackingSearch() {
                           {app.dossier_code}
                         </div>
                       </div>
-                      <div>
-                        <Tag
-                          color={statusConfig[app.status]?.color}
-                          style={{ fontSize: 14, padding: '4px 12px', fontWeight: 700 }}
-                        >
-                          {statusConfig[app.status]?.label || app.status}
-                        </Tag>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div style={{ background: '#f8fafc', padding: '6px 8px', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                          <QRCode 
+                            value={`${window.location.origin}/gov/tra-cuu?code=${encodeURIComponent(app.dossier_code)}`} 
+                            size={72} 
+                            bordered={false} 
+                          />
+                          <div style={{ fontSize: 9, color: '#64748b', marginTop: 2 }}>Quét tra cứu</div>
+                        </div>
+                        <div>
+                          <Tag
+                            color={statusConfig[app.status]?.color}
+                            style={{ fontSize: 14, padding: '4px 12px', fontWeight: 700 }}
+                          >
+                            {statusConfig[app.status]?.label || app.status}
+                          </Tag>
+                          <div style={{ marginTop: 6 }}>
+                            <Button
+                              size="small"
+                              icon={<QrcodeOutlined />}
+                              onClick={() => {
+                                const url = `${window.location.origin}/gov/tra-cuu?code=${encodeURIComponent(app.dossier_code)}`;
+                                if (navigator.clipboard) {
+                                  navigator.clipboard.writeText(url);
+                                }
+                                message.success('Đã sao chép liên kết tra cứu hồ sơ!');
+                              }}
+                            >
+                              Sao chép link
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -1213,6 +1276,62 @@ export default function TrackingSearch() {
                       >
                         <Input prefix={<CompassOutlined />} placeholder="Ví dụ: Ngã ba đường Điện Biên - Đinh Tiên Hoàng, TDP 2" size="large" />
                       </Form.Item>
+                      <Form.Item name="latitude" hidden><Input /></Form.Item>
+                      <Form.Item name="longitude" hidden><Input /></Form.Item>
+                      <div style={{ marginTop: -14, marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                        <Button 
+                          size="small" 
+                          icon={<CompassOutlined />} 
+                          style={{ color: '#b91c1c', borderColor: '#fca5a5', background: '#fef2f2' }}
+                          onClick={() => {
+                            if (navigator.geolocation) {
+                              navigator.geolocation.getCurrentPosition(
+                                (pos) => {
+                                  const lat = pos.coords.latitude;
+                                  const lng = pos.coords.longitude;
+                                  complaintForm.setFieldsValue({
+                                    latitude: lat,
+                                    longitude: lng,
+                                    location: complaintForm.getFieldValue('location') || `Tọa độ GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)} (Phường Yên Bái)`
+                                  });
+                                  message.success(`Đã định vị thành công: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+                                },
+                                () => {
+                                  complaintForm.setFieldsValue({
+                                    latitude: 21.7168,
+                                    longitude: 104.8965,
+                                    location: complaintForm.getFieldValue('location') || 'Khu vực Trung tâm UBND Phường Yên Bái'
+                                  });
+                                  message.info('Đã ghim vị trí mặc định tại Trung tâm Phường Yên Bái (21.7168, 104.8965)');
+                                }
+                              );
+                            }
+                          }}
+                        >
+                          Định vị GPS
+                        </Button>
+                        <Tag 
+                          color="blue" 
+                          style={{ cursor: 'pointer' }} 
+                          onClick={() => complaintForm.setFieldsValue({ location: 'Ngã tư Đinh Tiên Hoàng - Hoàng Hoa Thám (TDP 1)', latitude: 21.7168, longitude: 104.8965 })}
+                        >
+                          📍 TDP 1 Đinh Tiên Hoàng
+                        </Tag>
+                        <Tag 
+                          color="cyan" 
+                          style={{ cursor: 'pointer' }} 
+                          onClick={() => complaintForm.setFieldsValue({ location: 'Khu vực Chợ Trung tâm Phường Yên Bái (TDP 2)', latitude: 21.7182, longitude: 104.8992 })}
+                        >
+                          📍 TDP 2 Chợ Trung tâm
+                        </Tag>
+                        <Tag 
+                          color="orange" 
+                          style={{ cursor: 'pointer' }} 
+                          onClick={() => complaintForm.setFieldsValue({ location: 'Đường Điện Biên giao Trần Hưng Đạo (TDP 4)', latitude: 21.7201, longitude: 104.9015 })}
+                        >
+                          📍 TDP 4 Điện Biên
+                        </Tag>
+                      </div>
                     </Col>
                   </Row>
 
@@ -1421,9 +1540,9 @@ export default function TrackingSearch() {
                       <div style={{ fontWeight: 600, fontSize: 12, color: '#64748b', marginBottom: 4 }}>NỘI DUNG PHẢN ÁNH:</div>
                       <div style={{ color: '#334155', fontSize: 13, whiteSpace: 'pre-wrap' }}>{c.description}</div>
 
-                      {c.photo_paths && c.photo_paths.length > 0 && (
+                      {parsePhotos(c.photo_paths).length > 0 && (
                         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                          {c.photo_paths.map((p, idx) => (
+                          {parsePhotos(c.photo_paths).map((p, idx) => (
                             <img
                               key={idx}
                               src={resolveFileUrl(p)}
@@ -1456,13 +1575,13 @@ export default function TrackingSearch() {
                           Cán bộ thụ lý: <strong>{c.assigned_name || 'Bộ phận chuyên môn'}</strong> • Phản hồi lúc: {c.responded_at ? dayjs(c.responded_at).format('DD/MM/YYYY HH:mm') : 'Mới đây'}
                         </div>
 
-                        {c.resolved_photo_paths && c.resolved_photo_paths.length > 0 && (
+                        {parsePhotos(c.resolved_photo_paths).length > 0 && (
                           <div style={{ marginTop: 12 }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 6 }}>
                               Ảnh hiện trường sau khi đã xử lý / khắc phục:
                             </div>
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              {c.resolved_photo_paths.map((rp, idx) => (
+                              {parsePhotos(c.resolved_photo_paths).map((rp, idx) => (
                                 <img
                                   key={idx}
                                   src={resolveFileUrl(rp)}

@@ -20,6 +20,7 @@ import {
   Spin,
   Radio,
   Rate,
+  QRCode,
   message,
 } from 'antd';
 import {
@@ -787,21 +788,34 @@ export default function ApplicationDetail() {
             <p>- <strong>Thời gian hẹn trả kết quả: <span style={{ textDecoration: 'underline' }}>{dayjs(app.appointment_date).format('HH:mm, [ngày] DD/MM/YYYY')}</span></strong></p>
           </div>
 
-          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', textAlign: 'center' }}>
-            <div style={{ width: '45%' }}>
+          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', textAlign: 'center' }}>
+            <div style={{ width: '32%' }}>
               <div style={{ fontWeight: 'bold' }}>NGƯỜI NỘP HỒ SƠ</div>
               <div style={{ fontStyle: 'italic', fontSize: '11pt' }}>(Ký và ghi rõ họ tên)</div>
               <div style={{ marginTop: 60, fontWeight: 'bold' }}>{app.citizen_name}</div>
             </div>
-            <div style={{ width: '45%' }}>
+
+            <div style={{ width: '32%', textAlign: 'center' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '10pt', marginBottom: 4, color: '#334155' }}>QUÉT MÃ TRA CỨU</div>
+              <div style={{ display: 'inline-block', padding: 6, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6 }}>
+                <QRCode
+                  value={`${window.location.origin}/gov/tra-cuu?code=${encodeURIComponent(app.dossier_code)}`}
+                  size={100}
+                  bordered={false}
+                />
+              </div>
+              <div style={{ fontSize: '9pt', color: '#64748b', marginTop: 2 }}>{app.dossier_code}</div>
+            </div>
+
+            <div style={{ width: '32%' }}>
               <div style={{ fontWeight: 'bold' }}>CÁN BỘ TIẾP NHẬN</div>
               <div style={{ fontStyle: 'italic', fontSize: '11pt' }}>(Ký và ghi rõ họ tên)</div>
               <div style={{ marginTop: 60, fontWeight: 'bold' }}>{app.receiver_name || user?.full_name || 'Cán bộ Một cửa'}</div>
             </div>
           </div>
 
-          <div style={{ marginTop: 30, paddingTop: 10, borderTop: '1px dashed #999', fontSize: '10pt', fontStyle: 'italic', textAlign: 'center' }}>
-            * Quý công dân có thể dùng điện thoại thông minh quét mã hồ sơ để tra cứu tiến độ xử lý trực tuyến tại: http://localhost/gov/tra-cuu
+          <div style={{ marginTop: 24, paddingTop: 10, borderTop: '1px dashed #999', fontSize: '10pt', fontStyle: 'italic', textAlign: 'center' }}>
+            * Quý công dân dùng camera điện thoại quét mã QR ở trên hoặc truy cập <strong>{window.location.origin}/gov/tra-cuu</strong> để theo dõi tiến độ hồ sơ.
           </div>
         </div>
       </Modal>

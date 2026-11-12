@@ -196,21 +196,49 @@ export default function Login() {
             style={{ cursor: 'pointer', padding: '4px 8px', fontWeight: 600 }}
             onClick={() => fillAccount('motcua_lan')}
           >
-            📥 Một cửa (motcua_lan)
+            📥 Một cửa Quầy 1 (motcua_lan)
+          </Tag>
+          <Tag
+            color="orange"
+            style={{ cursor: 'pointer', padding: '4px 8px', fontWeight: 600 }}
+            onClick={() => fillAccount('motcua_quang')}
+          >
+            📥 Một cửa Quầy 2 (motcua_quang)
           </Tag>
           <Tag
             color="volcano"
             style={{ cursor: 'pointer', padding: '4px 8px', fontWeight: 600 }}
             onClick={() => fillAccount('chuyenvien_tuan')}
           >
-            📋 Chuyên viên (chuyenvien_tuan)
+            📋 CV Tư pháp (chuyenvien_tuan)
+          </Tag>
+          <Tag
+            color="blue"
+            style={{ cursor: 'pointer', padding: '4px 8px', fontWeight: 600 }}
+            onClick={() => fillAccount('chuyenvien_dung')}
+          >
+            📐 CV Địa chính (chuyenvien_dung)
           </Tag>
           <Tag
             color="gold"
             style={{ cursor: 'pointer', padding: '4px 8px', fontWeight: 600 }}
             onClick={() => fillAccount('lanhdao_hai')}
           >
-            ✍️ Lãnh đạo ký số (lanhdao_hai)
+            ✍️ PCT ký số (lanhdao_hai)
+          </Tag>
+          <Tag
+            color="purple"
+            style={{ cursor: 'pointer', padding: '4px 8px', fontWeight: 600 }}
+            onClick={() => fillAccount('lanhdao_hung')}
+          >
+            ⭐ Chủ tịch (lanhdao_hung)
+          </Tag>
+          <Tag
+            color="cyan"
+            style={{ cursor: 'pointer', padding: '4px 8px', fontWeight: 600 }}
+            onClick={() => fillAccount('congan_trung')}
+          >
+            🛡️ Công an Đề án 06 (congan_trung)
           </Tag>
         </div>
         <div style={{ textAlign: 'center', marginTop: 8, fontSize: 11, color: '#64748b' }}>

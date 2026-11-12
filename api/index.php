@@ -40,9 +40,10 @@ try {
     $router->post('/api/v1/auth/change-password', [AuthController::class, 'changePassword']);
     $router->post('/api/v1/auth/logout', [AuthController::class, 'logout']);
 
-    // 2. Bảng điều khiển (Dashboard)
+    // 2. Bảng điều khiển (Dashboard) & Bảng công khai
     $router->get('/api/v1/dashboard/stats', [DashboardController::class, 'getStats']);
     $router->get('/api/v1/dashboard/charts', [DashboardController::class, 'getCharts']);
+    $router->get('/api/v1/public/board', [DashboardController::class, 'publicBoard']);
 
     // 3. Phân hệ Một cửa & Xử lý hồ sơ (Applications)
     $router->get('/api/v1/applications', [ApplicationController::class, 'index']);
@@ -136,10 +137,23 @@ try {
     $router->get('/api/v1/citizen-accounts/{id}', [CitizenAccountController::class, 'show']);
     $router->put('/api/v1/citizen-accounts/{id}/status', [CitizenAccountController::class, 'updateStatus']);
 
+    // 15. Hàng đợi Bốc số & Màn hình gọi số Một cửa (Queue & Kiosk)
+    $router->post('/api/v1/public/queue/take', [QueueController::class, 'takeTicket']);
+    $router->get('/api/v1/public/queue/display', [QueueController::class, 'getDisplay']);
+    $router->post('/api/v1/queue/call-next', [QueueController::class, 'callNext']);
+    $router->put('/api/v1/queue/{id}/complete', [QueueController::class, 'completeTicket']);
+    $router->put('/api/v1/queue/{id}/skip', [QueueController::class, 'skipTicket']);
+
+    // 16. Chế độ Demo & Làm mới dữ liệu hệ thống
+    $router->get('/api/v1/demo/status', [DemoController::class, 'getStatus']);
+    $router->post('/api/v1/admin/demo/reset', [DemoController::class, 'resetData']);
+
     $router->dispatch($request);
 } catch (Throwable $e) {
-    Response::error('Lỗi máy chủ nội bộ: ' . $e->getMessage(), 500, [
+    $config = @include __DIR__ . '/config/app.php';
+    $debug = !empty($config['demo_mode']);
+    Response::error('Lỗi máy chủ nội bộ: ' . $e->getMessage(), 500, $debug ? [
         'file' => $e->getFile(),
         'line' => $e->getLine()
-    ]);
+    ] : null);
 }

@@ -62,6 +62,7 @@ class ComplaintController {
 
         foreach ($items as &$item) {
             $item['photo_paths'] = json_decode($item['photo_paths'] ?? '[]', true) ?: [];
+            $item['resolved_photo_paths'] = json_decode($item['resolved_photo_paths'] ?? '[]', true) ?: [];
         }
 
         Response::paginated($items, $total, $page, $pageSize, 'Lấy danh sách phản ánh thành công');
@@ -86,6 +87,7 @@ class ComplaintController {
         }
 
         $item['photo_paths'] = json_decode($item['photo_paths'] ?? '[]', true) ?: [];
+        $item['resolved_photo_paths'] = json_decode($item['resolved_photo_paths'] ?? '[]', true) ?: [];
         Response::json($item, 200, 'Lấy chi tiết phản ánh thành công');
     }
 
@@ -115,18 +117,21 @@ class ComplaintController {
         $code = DossierCodeGenerator::generateComplaintCode();
         $db = Database::getConnection();
 
+        $latitude = isset($body['latitude']) && is_numeric($body['latitude']) ? (float)$body['latitude'] : 21.716800;
+        $longitude = isset($body['longitude']) && is_numeric($body['longitude']) ? (float)$body['longitude'] : 104.896500;
+
         $stmt = $db->prepare('
             INSERT INTO complaints (
                 complaint_code, citizen_name, citizen_phone, citizen_cccd, citizen_account_id, category, 
-                title, description, location, photo_paths, priority, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                title, description, location, latitude, longitude, photo_paths, priority, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $photos = !empty($body['photo_paths']) ? json_encode($body['photo_paths'], JSON_UNESCAPED_UNICODE) : null;
         $priority = $body['priority'] ?? 'TRUNG_BINH';
 
         $stmt->execute([
             $code, $citizenName, $phone, $body['citizen_cccd'] ?? null, $citizenAccountId,
-            $category, $title, $description, $location, $photos, $priority, 'MOI'
+            $category, $title, $description, $location, $latitude, $longitude, $photos, $priority, 'MOI'
         ]);
 
         $idStmt = $db->prepare('SELECT id FROM complaints WHERE complaint_code = ?');

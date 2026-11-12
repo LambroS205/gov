@@ -42,7 +42,12 @@ client.interceptors.response.use(
       localStorage.removeItem('gov_token');
       localStorage.removeItem('gov_user');
       const currentPath = window.location.pathname;
-      const isPublicPath = currentPath.endsWith('/login') || currentPath.endsWith('/tra-cuu') || currentPath.includes('/cong-dan');
+      const isPublicPath = currentPath.endsWith('/login') || 
+                           currentPath.endsWith('/tra-cuu') || 
+                           currentPath.includes('/cong-dan') ||
+                           currentPath.includes('/cong-khai') ||
+                           currentPath.includes('/kiosk') ||
+                           currentPath.includes('/goi-so');
       if (!isPublicPath) {
         message.warning('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại');
         window.location.href = `${APP_BASE}/login`;
@@ -165,6 +170,23 @@ export const citizenAccountsApi = {
   list: (params) => client.get('/citizen-accounts', { params }),
   get: (id) => client.get(`/citizen-accounts/${id}`),
   updateStatus: (id, data) => client.put(`/citizen-accounts/${id}/status`, data),
+};
+
+export const queueApi = {
+  takeTicket: (data) => client.post('/public/queue/take', data),
+  getDisplay: () => client.get('/public/queue/display'),
+  callNext: (data) => client.post('/queue/call-next', data),
+  completeTicket: (id) => client.put(`/queue/${id}/complete`),
+  skipTicket: (id) => client.put(`/queue/${id}/skip`),
+};
+
+export const publicBoardApi = {
+  getBoard: () => client.get('/public/board'),
+};
+
+export const demoApi = {
+  getStatus: () => client.get('/demo/status'),
+  reset: (confirm = 'reset_demo_data_2026') => client.post('/admin/demo/reset', { confirm }),
 };
 
 export default client;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Statistic, Progress, Table, Tag, Button, Typography, Space, Spin, Alert, Tooltip as AntTooltip } from 'antd';
+import { Row, Col, Card, Statistic, Progress, Table, Tag, Button, Typography, Space, Spin, Alert, Tooltip as AntTooltip, Popconfirm, message } from 'antd';
 import {
   FileTextOutlined,
   ClockCircleOutlined,
@@ -16,6 +16,8 @@ import {
   WarningOutlined,
   ThunderboltOutlined,
   QrcodeOutlined,
+  SyncOutlined,
+  DesktopOutlined,
 } from '@ant-design/icons';
 import {
   ResponsiveContainer,
@@ -31,7 +33,8 @@ import {
   Legend,
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-import { dashboardApi, applicationsApi } from '../api/client';
+import { dashboardApi, applicationsApi, demoApi } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -43,11 +46,26 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [charts, setCharts] = useState(null);
   const [recentApps, setRecentApps] = useState([]);
+  const [resettingDemo, setResettingDemo] = useState(false);
   const navigate = useNavigate();
+  const { hasRole } = useAuth();
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  const handleResetDemo = async () => {
+    setResettingDemo(true);
+    try {
+      await demoApi.reset();
+      message.success('Đã nạp lại dữ liệu demo chuẩn và trẻ hóa mốc thời gian!');
+      fetchDashboardData();
+    } catch (err) {
+      message.error(err?.message || 'Lỗi khi làm mới dữ liệu demo');
+    } finally {
+      setResettingDemo(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -190,7 +208,7 @@ export default function Dashboard() {
           </Text>
         </div>
 
-        <Space size="middle" style={{ zIndex: 1 }}>
+        <Space size="middle" style={{ zIndex: 1 }} wrap>
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -209,6 +227,15 @@ export default function Dashboard() {
           </Button>
           <Button
             ghost
+            icon={<DesktopOutlined />}
+            size="large"
+            onClick={() => window.open('/gov/cong-khai', '_blank')}
+            style={{ borderRadius: 8, fontWeight: 600, borderColor: '#fde68a', color: '#ffffff' }}
+          >
+            Bảng TV Công khai ↗
+          </Button>
+          <Button
+            ghost
             icon={<SearchOutlined />}
             size="large"
             onClick={() => navigate('/tra-cuu')}
@@ -216,6 +243,31 @@ export default function Dashboard() {
           >
             Tra cứu công dân
           </Button>
+
+          {hasRole(['ADMIN']) && (
+            <Popconfirm
+              title="Làm mới toàn bộ dữ liệu Demo?"
+              description="Nạp lại seed data chuẩn và dịch chuyển mốc thời gian sát ngày hôm nay để biểu đồ và KPI hiển thị tối ưu."
+              onConfirm={handleResetDemo}
+              okText="Đồng ý làm mới"
+              cancelText="Hủy"
+              okButtonProps={{ danger: true, loading: resettingDemo }}
+            >
+              <Button
+                danger
+                icon={<SyncOutlined spin={resettingDemo} />}
+                size="large"
+                style={{
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  border: '1.5px solid #ef4444',
+                }}
+              >
+                Reset Demo
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       </div>
 

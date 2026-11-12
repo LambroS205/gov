@@ -234,4 +234,96 @@ class DashboardController {
             'complaint_categories' => $complaintChart
         ], 200, 'Lấy dữ liệu biểu đồ thành công');
     }
+
+    /**
+     * Dữ liệu Bảng điện tử Công khai dành cho Màn hình TV sảnh Một cửa (/cong-khai)
+     * Công khai 100%, tuân thủ che mờ dữ liệu cá nhân (Nghị định 13/2023/NĐ-CP)
+     */
+    public function publicBoard(Request $request): void {
+        $db = Database::getConnection();
+
+        // 1. Chỉ số tổng hợp
+        $todayReceived = (int)$db->query("SELECT COUNT(*) FROM applications WHERE DATE(submit_date) = CURDATE()")->fetchColumn();
+        $todayCompleted = (int)$db->query("SELECT COUNT(*) FROM applications WHERE status = 'HOAN_THANH' AND DATE(completed_date) = CURDATE()")->fetchColumn();
+        $monthCompleted = (int)$db->query("SELECT COUNT(*) FROM applications WHERE status = 'HOAN_THANH' AND MONTH(completed_date) = MONTH(CURDATE()) AND YEAR(completed_date) = YEAR(CURDATE())")->fetchColumn();
+        $activeCount = (int)$db->query("SELECT COUNT(*) FROM applications WHERE status NOT IN ('HOAN_THANH', 'TU_CHOI')")->fetchColumn();
+
+        $onTimeData = $db->query("
+            SELECT 
+                COUNT(*) as total_finished,
+                SUM(CASE WHEN completed_date <= appointment_date THEN 1 ELSE 0 END) as on_time
+            FROM applications
+            WHERE status = 'HOAN_THANH'
+        ")->fetch();
+
+        $onTimeRate = 100.0;
+        if (!empty($onTimeData['total_finished']) && (int)$onTimeData['total_finished'] > 0) {
+            $onTimeRate = round(($onTimeData['on_time'] / $onTimeData['total_finished']) * 100, 1);
+        }
+
+        $csatAvg = (float)$db->query("SELECT COALESCE(AVG(satisfaction_score), 5.0) FROM applications WHERE satisfaction_score IS NOT NULL")->fetchColumn();
+
+        // 2. Danh sách 10 hồ sơ vừa hoàn thành hoặc đang xử lý gần nhất (đã che tên)
+        $recentApps = $db->query("
+            SELECT a.dossier_code, a.citizen_name, a.status, a.submit_date, a.appointment_date, a.completed_date,
+                   p.proc_name, p.field_type
+            FROM applications a
+            JOIN administrative_procedures p ON a.procedure_id = p.id
+            ORDER BY a.updated_at DESC
+            LIMIT 10
+        ")->fetchAll();
+
+        $maskedApps = array_map(function ($app) {
+            return [
+                'dossier_code' => $app['dossier_code'],
+                'proc_name' => $app['proc_name'],
+                'field_type' => $app['field_type'],
+                'citizen_name_masked' => DataMasking::maskName($app['citizen_name']),
+                'status' => $app['status'],
+                'submit_date' => $app['submit_date'],
+                'appointment_date' => $app['appointment_date'],
+                'completed_date' => $app['completed_date'],
+            ];
+        }, $recentApps);
+
+        // 3. Số đang gọi phục vụ tại các quầy
+        $activeTickets = $db->query("
+            SELECT counter_no, ticket_number, service_name, citizen_name, called_at
+            FROM queue_tickets
+            WHERE status = 'DANG_GOI' AND DATE(created_at) = CURDATE()
+            ORDER BY counter_no ASC
+        ")->fetchAll();
+
+        $maskedTickets = array_map(function ($t) {
+            return [
+                'counter_no' => (int)$t['counter_no'],
+                'ticket_number' => $t['ticket_number'],
+                'service_name' => $t['service_name'],
+                'citizen_name_masked' => DataMasking::maskName($t['citizen_name']),
+                'called_at' => $t['called_at']
+            ];
+        }, $activeTickets);
+
+        // 4. Số lượng chờ theo quầy
+        $waitingTotal = (int)$db->query("SELECT COUNT(*) FROM queue_tickets WHERE status = 'CHO' AND DATE(created_at) = CURDATE()")->fetchColumn();
+
+        Response::json([
+            'unit_name' => 'ỦY BAN NHÂN DÂN PHƯỜNG YÊN BÁI',
+            'board_title' => 'BẢNG ĐIỆN TỬ CÔNG KHAI TIẾN ĐỘ THỦ TỤC HÀNH CHÍNH & KẾT QUẢ GIẢI QUYẾT',
+            'server_time' => date('H:i:s'),
+            'server_date' => date('d/m/Y'),
+            'metrics' => [
+                'today_received' => $todayReceived,
+                'today_completed' => $todayCompleted,
+                'month_completed' => $monthCompleted,
+                'active_count' => $activeCount,
+                'on_time_rate' => $onTimeRate,
+                'csat_score' => round($csatAvg, 1),
+                'waiting_queue' => $waitingTotal
+            ],
+            'recent_dossiers' => $maskedApps,
+            'active_counters' => $maskedTickets,
+            'announcement' => 'Chào mừng quý công dân đến liên hệ giải quyết TTHC tại UBND Phường Yên Bái. Mọi thắc mắc hoặc phản ánh vui lòng quét mã QR hoặc liên hệ hotline: 0216.3852.xxx'
+        ], 200, 'Lấy dữ liệu Bảng công khai thành công');
+    }
 }

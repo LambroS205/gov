@@ -668,6 +668,11 @@ class ApplicationController {
         $sigTime = htmlspecialchars($sig['timestamp']);
         $currentDate = date('d/m/Y');
 
+        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $trackUrl = "{$proto}://{$host}/gov/tra-cuu?code=" . urlencode($app['dossier_code']);
+        $qrImgUrl = "https://api.qrserver.com/v1/create-qr-code/?size=110x110&margin=2&data=" . urlencode($trackUrl);
+
         return <<<HTML
 <!DOCTYPE html>
 <html lang="vi">
@@ -886,9 +891,12 @@ class ApplicationController {
 
     <div class="footer-section">
       <div class="qr-box">
-        <div style="font-weight: bold; margin-bottom: 4px; color: #334155;">TRA CỨU XÁC THỰC</div>
-        <div>Mã hồ sơ: <strong>{$dossierCode}</strong></div>
-        <div style="font-size: 9pt; margin-top: 4px;">Cổng Dịch vụ công điện tử UBND Phường Yên Bái</div>
+        <div style="font-weight: bold; margin-bottom: 6px; color: #1e293b; font-size: 9.5pt;">QUÉT MÃ TRA CỨU</div>
+        <a href="{$trackUrl}" target="_blank" title="Bấm để mở tra cứu trực tuyến">
+          <img src="{$qrImgUrl}" alt="Mã QR tra cứu hồ sơ" style="width: 100px; height: 100px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 0 auto;" />
+        </a>
+        <div style="margin-top: 6px; font-weight: bold; color: #b91c1c; font-size: 9pt;">{$dossierCode}</div>
+        <div style="font-size: 8pt; color: #64748b; margin-top: 2px;">Cổng DVC UBND Phường Yên Bái</div>
       </div>
 
       <div class="sig-seal">
@@ -1178,6 +1186,11 @@ HTML;
         $month = $dateParts[1] ?? date('m');
         $year = $dateParts[2] ?? date('Y');
 
+        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $trackUrl = "{$proto}://{$host}/gov/tra-cuu?code=" . urlencode($dossierCode);
+        $qrImgUrl = "https://api.qrserver.com/v1/create-qr-code/?size=95x95&margin=2&data=" . urlencode($trackUrl);
+
         return <<<HTML
 <!DOCTYPE html>
 <html lang="vi">
@@ -1378,7 +1391,7 @@ HTML;
     <table class="header-table">
       <tr>
         <td class="header-left">
-          <strong>ỦY BAN NHÂN DÂN PHƯỜNG ĐỒNG TÂM</strong><br>
+          <strong>ỦY BAN NHÂN DÂN PHƯỜNG YÊN BÁI</strong><br>
           <span style="font-size: 10pt; color: #475569;">BỘ PHẬN TIẾP NHẬN & TRẢ KẾT QUẢ MỘT CỬA</span><br>
           <span style="font-size: 9.5pt;">Mã số thuế: <strong>5200189922</strong></span>
         </td>
@@ -1471,11 +1484,16 @@ HTML;
           <div class="stamp-title">
             <span>✓</span> ĐÃ THU TIỀN ĐIỆN TỬ
           </div>
-          <div><strong>Cơ quan:</strong> UBND Phường Đồng Tâm</div>
+          <div><strong>Cơ quan:</strong> UBND Phường Yên Bái</div>
           <div><strong>Cán bộ thu:</strong> {$collectorName}</div>
           <div><strong>Thời gian thu:</strong> {$paidTime}</div>
           <div><strong>Mã tra cứu BL:</strong> <code>{$receiptNumber}</code></div>
-          <div class="qr-badge">TRA CỨU: https://dvc.yenbai.gov.vn/bienlai/{$receiptNumber}</div>
+          <div style="margin-top: 8px; text-align: center;">
+            <a href="{$trackUrl}" target="_blank" title="Bấm để mở tra cứu trực tuyến">
+              <img src="{$qrImgUrl}" alt="Mã QR tra cứu biên lai" style="width: 80px; height: 80px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 0 auto;" />
+            </a>
+            <div class="qr-badge" style="margin-top: 4px;">TRA CỨU TRỰC TUYẾN: {$dossierCode}</div>
+          </div>
         </div>
       </div>
     </div>

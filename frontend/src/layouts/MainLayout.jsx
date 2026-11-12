@@ -1,5 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Avatar, Dropdown, Space, Tag, Modal, Form, Input, Badge, Popover, List, message } from 'antd';
+import {
+  Layout,
+  Menu,
+  Button,
+  Avatar,
+  Dropdown,
+  Space,
+  Tag,
+  Modal,
+  Form,
+  Input,
+  Badge,
+  Popover,
+  List,
+  Popconfirm,
+  notification,
+  message,
+} from 'antd';
 import {
   DashboardOutlined,
   FileTextOutlined,
@@ -20,10 +37,14 @@ import {
   BellOutlined,
   MessageOutlined,
   ClockCircleOutlined,
+  SoundOutlined,
+  DesktopOutlined,
+  QrcodeOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { authApi, dashboardApi } from '../api/client';
+import { authApi, dashboardApi, queueApi, demoApi, APP_BASE } from '../api/client';
 import dayjs from 'dayjs';
 
 const { Header, Sider, Content } = Layout;
@@ -39,11 +60,12 @@ export default function MainLayout() {
     items: [],
   });
 
-  useEffect(() => {
-    fetchAlerts();
-    const interval = setInterval(fetchAlerts, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const { user, login, logout, hasRole } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [callingQueue, setCallingQueue] = useState(false);
+  const [resettingDemo, setResettingDemo] = useState(false);
 
   const fetchAlerts = async () => {
     try {
@@ -56,9 +78,75 @@ export default function MainLayout() {
     }
   };
 
-  const { user, logout, hasRole } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  useEffect(() => {
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSwitchRole = async (username, targetRoute) => {
+    try {
+      const ok = await login(username, 'Admin@123');
+      if (ok) {
+        message.success(`Đã chuyển vai trò sang: ${username}`);
+        if (targetRoute) {
+          navigate(targetRoute);
+        }
+      }
+    } catch (err) {
+      message.error('Không thể chuyển vai trò');
+    }
+  };
+
+  const handleCallNextQueue = async (counterNo = 1) => {
+    setCallingQueue(true);
+    try {
+      const res = await queueApi.callNext({ counter_no: counterNo });
+      if (res?.data) {
+        const ticket = res.data;
+        notification.success({
+          message: `📢 ĐANG GỌI SỐ: ${ticket.ticket_number}`,
+          description: (
+            <div>
+              <div>Quầy số {counterNo} • {ticket.service_name}</div>
+              {ticket.citizen_name && <div>Công dân: <strong>{ticket.citizen_name}</strong></div>}
+              <div style={{ marginTop: 8 }}>
+                <Button 
+                  size="small" 
+                  type="primary" 
+                  style={{ background: '#b91c1c' }}
+                  onClick={() => navigate('/applications/create')}
+                >
+                  Mở tiếp nhận hồ sơ mới →
+                </Button>
+              </div>
+            </div>
+          ),
+          duration: 6,
+        });
+      } else {
+        message.info(res?.message || 'Không có công dân nào đang chờ lấy số');
+      }
+    } catch (err) {
+      message.error(err?.message || 'Có lỗi khi gọi số');
+    } finally {
+      setCallingQueue(false);
+    }
+  };
+
+  const handleResetDemoData = async () => {
+    setResettingDemo(true);
+    try {
+      await demoApi.reset();
+      message.success('Đã nạp lại dữ liệu demo chuẩn và trẻ hóa mốc thời gian!');
+      fetchAlerts();
+      window.location.reload();
+    } catch (err) {
+      message.error(err?.message || 'Lỗi khi làm mới dữ liệu demo');
+    } finally {
+      setResettingDemo(false);
+    }
+  };
 
   const roleLabels = {
     ADMIN: { label: 'Quản trị viên', color: 'red' },
@@ -443,6 +531,157 @@ export default function MainLayout() {
             </Space>
           </div>
         </Header>
+
+        {/* THANH ĐIỀU KHIỂN CHẾ ĐỘ TRÌNH DIỄN (DEMO MODE & QUICK SWITCH) */}
+        <div
+          style={{
+            margin: '12px 24px 0 24px',
+            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+            border: '1.5px solid #f59e0b',
+            borderRadius: 12,
+            padding: '8px 16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 10,
+            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.15)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#92400e', textTransform: 'uppercase' }}>
+              🎭 Chuyển vai trò Demo:
+            </span>
+            <Space size={6} wrap>
+              <Button
+                size="small"
+                type={user?.username === 'motcua_lan' ? 'primary' : 'default'}
+                onClick={() => handleSwitchRole('motcua_lan', '/applications')}
+                style={{
+                  fontSize: 12,
+                  fontWeight: user?.username === 'motcua_lan' ? 700 : 500,
+                  background: user?.username === 'motcua_lan' ? '#b91c1c' : '#ffffff',
+                  borderColor: user?.username === 'motcua_lan' ? '#b91c1c' : '#d97706',
+                  color: user?.username === 'motcua_lan' ? '#ffffff' : '#78350f',
+                }}
+              >
+                1. Một cửa (Lan)
+              </Button>
+
+              <Button
+                size="small"
+                type={user?.username === 'chuyenvien_tuan' ? 'primary' : 'default'}
+                onClick={() => handleSwitchRole('chuyenvien_tuan', '/processing/queue')}
+                style={{
+                  fontSize: 12,
+                  fontWeight: user?.username === 'chuyenvien_tuan' ? 700 : 500,
+                  background: user?.username === 'chuyenvien_tuan' ? '#b91c1c' : '#ffffff',
+                  borderColor: user?.username === 'chuyenvien_tuan' ? '#b91c1c' : '#d97706',
+                  color: user?.username === 'chuyenvien_tuan' ? '#ffffff' : '#78350f',
+                }}
+              >
+                2. Chuyên viên (Tuấn)
+              </Button>
+
+              <Button
+                size="small"
+                type={user?.username === 'lanhdao_hai' ? 'primary' : 'default'}
+                onClick={() => handleSwitchRole('lanhdao_hai', '/approval/pending')}
+                style={{
+                  fontSize: 12,
+                  fontWeight: user?.username === 'lanhdao_hai' ? 700 : 500,
+                  background: user?.username === 'lanhdao_hai' ? '#b91c1c' : '#ffffff',
+                  borderColor: user?.username === 'lanhdao_hai' ? '#b91c1c' : '#d97706',
+                  color: user?.username === 'lanhdao_hai' ? '#ffffff' : '#78350f',
+                }}
+              >
+                3. Lãnh đạo ký số (Hải)
+              </Button>
+
+              <Button
+                size="small"
+                type={user?.username === 'admin' ? 'primary' : 'default'}
+                onClick={() => handleSwitchRole('admin', '/dashboard')}
+                style={{
+                  fontSize: 12,
+                  fontWeight: user?.username === 'admin' ? 700 : 500,
+                  background: user?.username === 'admin' ? '#b91c1c' : '#ffffff',
+                  borderColor: user?.username === 'admin' ? '#b91c1c' : '#d97706',
+                  color: user?.username === 'admin' ? '#ffffff' : '#78350f',
+                }}
+              >
+                4. Quản trị viên (Admin)
+              </Button>
+            </Space>
+
+            {/* Nút Gọi số tiếp theo cho cán bộ Một cửa */}
+            {hasRole(['ADMIN', 'MOT_CUA']) && (
+              <Button
+                size="small"
+                icon={<SoundOutlined />}
+                loading={callingQueue}
+                onClick={() => handleCallNextQueue(1)}
+                style={{
+                  background: '#15803d',
+                  borderColor: '#15803d',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  boxShadow: '0 2px 6px rgba(21, 128, 61, 0.3)',
+                }}
+              >
+                📢 Gọi số tiếp theo (Quầy 1)
+              </Button>
+            )}
+          </div>
+
+          <Space size={8} wrap>
+            <Button
+              size="small"
+              icon={<DesktopOutlined />}
+              onClick={() => window.open(APP_BASE + '/cong-khai', '_blank')}
+              style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a', borderColor: '#93c5fd' }}
+            >
+              Bảng TV Công khai ↗
+            </Button>
+            <Button
+              size="small"
+              icon={<QrcodeOutlined />}
+              onClick={() => window.open(APP_BASE + '/kiosk', '_blank')}
+              style={{ fontSize: 12, fontWeight: 600, color: '#b45309', borderColor: '#fcd34d' }}
+            >
+              Kiosk bốc số ↗
+            </Button>
+            <Button
+              size="small"
+              icon={<SoundOutlined />}
+              onClick={() => window.open(APP_BASE + '/goi-so', '_blank')}
+              style={{ fontSize: 12, fontWeight: 600, color: '#15803d', borderColor: '#86efac' }}
+            >
+              Màn hình gọi số ↗
+            </Button>
+
+            {hasRole(['ADMIN']) && (
+              <Popconfirm
+                title="Làm mới toàn bộ dữ liệu Demo?"
+                description="Hệ thống sẽ nạp lại dữ liệu mẫu chuẩn và dịch chuyển mốc thời gian sát ngày hôm nay."
+                onConfirm={handleResetDemoData}
+                okText="Đồng ý làm mới"
+                cancelText="Hủy"
+                okButtonProps={{ danger: true, loading: resettingDemo }}
+              >
+                <Button
+                  size="small"
+                  danger
+                  icon={<SyncOutlined spin={resettingDemo} />}
+                  style={{ fontSize: 12, fontWeight: 600 }}
+                >
+                  Reset Demo
+                </Button>
+              </Popconfirm>
+            )}
+          </Space>
+        </div>
 
         {/* Nội dung trang */}
         <Content

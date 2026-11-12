@@ -15,6 +15,7 @@ import {
   Input,
   Modal,
   Spin,
+  QRCode,
   message,
   Table,
 } from 'antd';
@@ -206,16 +207,27 @@ export default function MyApplicationDetail() {
           </Col>
 
           <Col xs={24} md={6} style={{ textAlign: 'right' }}>
-            <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: 10, display: 'inline-block', textAlign: 'left', minWidth: 200 }}>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Hạn trả kết quả:</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#b91c1c' }}>
-                {app.appointment_date ? dayjs(app.appointment_date).format('DD/MM/YYYY HH:mm') : '—'}
-              </div>
-              {app.completed_date && (
-                <div style={{ fontSize: 12, color: '#15803d', marginTop: 4 }}>
-                  ✓ Đã xong: {dayjs(app.completed_date).format('DD/MM/YYYY')}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: '#f8fafc', padding: '10px 14px', borderRadius: 12, border: '1px solid #e2e8f0', textAlign: 'left' }}>
+              <QRCode
+                value={`${window.location.origin}/gov/tra-cuu?code=${encodeURIComponent(app.dossier_code)}`}
+                size={68}
+                bordered={false}
+              />
+              <div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>Hạn trả kết quả:</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
+                  {app.appointment_date ? dayjs(app.appointment_date).format('DD/MM/YYYY') : '—'}
                 </div>
-              )}
+                {app.completed_date ? (
+                  <div style={{ fontSize: 11, color: '#15803d', marginTop: 2, fontWeight: 600 }}>
+                    ✓ Đã hoàn thành
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: '#0284c7', marginTop: 2 }}>
+                    Đang giải quyết
+                  </div>
+                )}
+              </div>
             </div>
           </Col>
         </Row>

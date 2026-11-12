@@ -31,6 +31,17 @@ import dayjs from 'dayjs';
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 
+const parsePhotos = (val) => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try {
+    const parsed = JSON.parse(val);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return typeof val === 'string' && val.trim() ? [val.trim()] : [];
+  }
+};
+
 export default function MyComplaints() {
   const navigate = useNavigate();
 
@@ -331,14 +342,14 @@ export default function MyComplaints() {
             </Descriptions>
 
             {/* Ảnh hiện trường gửi lên */}
-            {selectedComplaint.photo_paths && selectedComplaint.photo_paths.length > 0 && (
+            {parsePhotos(selectedComplaint.photo_paths).length > 0 && (
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontWeight: 600, color: '#450a0a', marginBottom: 8 }}>
-                  Ảnh hiện trường phản ánh ban đầu:
+                  Ảnh hiện trường phản ánh ban đầu ({parsePhotos(selectedComplaint.photo_paths).length}):
                 </div>
                 <Image.PreviewGroup>
                   <Space wrap size="small">
-                    {selectedComplaint.photo_paths.map((p, idx) => (
+                    {parsePhotos(selectedComplaint.photo_paths).map((p, idx) => (
                       <Image
                         key={idx}
                         width={90}
@@ -373,14 +384,14 @@ export default function MyComplaints() {
                     </div>
 
                     {/* Ảnh thực tế kết quả sau xử lý */}
-                    {selectedComplaint.resolved_photo_paths && selectedComplaint.resolved_photo_paths.length > 0 && (
+                    {parsePhotos(selectedComplaint.resolved_photo_paths).length > 0 && (
                       <div style={{ marginTop: 12 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#15803d', marginBottom: 6 }}>
-                          Ảnh hiện trường sau khi giải quyết:
+                          Ảnh hiện trường sau khi giải quyết ({parsePhotos(selectedComplaint.resolved_photo_paths).length}):
                         </div>
                         <Image.PreviewGroup>
                           <Space wrap size="small">
-                            {selectedComplaint.resolved_photo_paths.map((rp, idx) => (
+                            {parsePhotos(selectedComplaint.resolved_photo_paths).map((rp, idx) => (
                               <Image
                                 key={idx}
                                 width={85}

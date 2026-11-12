@@ -39,6 +39,11 @@ import MyComplaints from './pages/citizen/MyComplaints';
 import Notifications from './pages/citizen/Notifications';
 import Profile from './pages/citizen/Profile';
 
+// Public Smart Displays & Kiosk Pages
+import PublicBoard from './pages/public/PublicBoard';
+import Kiosk from './pages/public/Kiosk';
+import QueueDisplay from './pages/public/QueueDisplay';
+
 // Protected Route Wrapper for Staff
 const ProtectedRoute = ({ children, requiredRoles }) => {
   const { user, loading, hasRole } = useAuth();
@@ -115,6 +120,9 @@ export default function App() {
               {/* Tuyến đường công khai & Tra cứu */}
               <Route path="/login" element={<Login />} />
               <Route path="/tra-cuu" element={<TrackingSearch />} />
+              <Route path="/cong-khai" element={<PublicBoard />} />
+              <Route path="/kiosk" element={<Kiosk />} />
+              <Route path="/goi-so" element={<QueueDisplay />} />
 
               {/* Tuyến đường Đăng ký / Đăng nhập / Quên MK công dân */}
               <Route path="/cong-dan/dang-nhap" element={<CitizenLogin />} />
